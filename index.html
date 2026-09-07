@@ -597,6 +597,8 @@ code{font-family:var(--mono);font-size:12px;background:var(--paper);padding:1px 
 #cliTable td{white-space:nowrap} #cliTable td:first-child{white-space:normal;min-width:190px}
 #cliTable th.sortable{white-space:nowrap}
 .kpi .v.up{color:var(--gain)} .kpi .v.dn{color:var(--loss)}
+.band .seg-b.other{top:21px;height:3px;border-radius:2px;background:var(--ink-3);opacity:.55}
+.band .seg-b.umi{top:21px;height:3px;border-radius:2px;background:var(--ink)}
 </style>
 </head>
 <body>
@@ -858,7 +860,7 @@ code{font-family:var(--mono);font-size:12px;background:var(--paper);padding:1px 
           <div class="ph"><h2>Where you sit this year</h2><span class="sub" id="taxYearLbl"></span></div>
           <div class="row-between" style="flex-wrap:wrap;gap:12px">
             <div class="seg" id="entitySeg"><button class="on" data-e="ltd">Limited company</button><button data-e="sole">Sole trader</button></div>
-            <div id="assocWrap" style="display:flex;align-items:center;gap:14px;font-size:13px;flex-wrap:wrap">Companies you control <div class="stepper"><button id="assocMinus">&minus;</button><span id="assocV"></span><button id="assocPlus">+</button></div><span>Period <input id="tx_months" type="number" min="1" max="12" value="12" style="width:52px;border:1px solid var(--line-2);border-radius:4px;padding:3px 6px"> months</span><span>Dividends received <input id="tx_dist" type="number" value="0" style="width:72px;border:1px solid var(--line-2);border-radius:4px;padding:3px 6px"></span></div>
+            <div id="assocWrap" style="display:flex;align-items:center;gap:14px;font-size:13px;flex-wrap:wrap">Companies you control <div class="stepper"><button id="assocMinus">&minus;</button><span id="assocV"></span><button id="assocPlus">+</button></div><span>Period <input id="tx_months" type="number" min="1" max="12" value="12" style="width:52px;border:1px solid var(--line-2);border-radius:4px;padding:3px 6px"> months</span><span>Dividends received <input id="tx_dist" type="number" value="0" style="width:72px;border:1px solid var(--line-2);border-radius:4px;padding:3px 6px"></span></div><div id="otherWrap" style="display:none;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap">Other earned income this tax year <span class="money" style="display:inline-block"><input id="tx_other" type="number" min="0" step="500" placeholder="0" style="width:110px;border:1px solid var(--line-2);border-radius:4px;padding:3px 6px 3px 22px"></span><span class="small">salary from elsewhere; Umi is taxed on top of it</span></div>
           </div>
           <div class="band" id="band"></div>
           <div class="stat-row mt16" id="taxStats"></div>
@@ -2534,7 +2536,7 @@ function renderDataRoom(){
 /* ============================================================
    v6 — client desk, payments on invoices, connections
    ============================================================ */
-const V6 = 'v6.0';
+const V6 = 'v6.1';
 SAVE_KEYS.push('contact','integ','v6demo');
 const CLIENT_TYPES = { player:'Player', agent:'Agent', parent:'Parent or family', buyer:'Buyer' };
 const TOUCH_TYPES = { dm:'Message', call:'Call', meet:'Met', delivered:'Delivered', note:'Note' };
@@ -2572,6 +2574,7 @@ function normInvoice(i){
 function ensureV6(){
   state.contact = Object.assign({ whatsapp:'', ig:(state.ig&&state.ig.handle)||'', signoff:'', payNote:'' }, state.contact||{});
   state.integ = state.integ||{};
+  state.tax.otherIncome = Math.max(0,+state.tax.otherIncome||0);
   state.rules.cadence = state.rules.cadence||{ on:true, days:45 };
   state.rules.lapsed = state.rules.lapsed||{ on:true, days:120 };
   state.rules.birthday = state.rules.birthday||{ on:true, days:10 };
@@ -2931,6 +2934,73 @@ function renderRail(){
 $('#addClient').addEventListener('click',addClientModal);
 $$('#cliChips button').forEach(b=>b.addEventListener('click',()=>{ cliChip=b.dataset.chip; renderClients(); }));
 $('#cliExport').addEventListener('click',()=>{ const T=tierMap(); const rows=[['name','type','context','tier','shoe','clothing','buys','status','orders','revenue','gross_profit','margin','avg_order','rhythm_days','last_order','next_expected','expected_90d','owed','whatsapp','instagram','since','tags']]; state.clients.forEach(c=>{ const s=cstats(c); rows.push([c.name,c.type,c.tier,T[c.id],c.shoe,c.cloth,c.brands.join('; '),s.status,s.orders,s.revenue.toFixed(0),s.gp.toFixed(0),(s.margin*100).toFixed(1)+'%',s.avgOrder.toFixed(0),s.cadence,s.lastOrder,s.nextDue,s.ev90.toFixed(0),s.owed.toFixed(0),c.phone,c.ig,c.since,c.tags.join('; ')]); }); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`sizerun-clients-${todayISO()}.csv`; a.click(); toast('Client book exported'); });
+
+/* --- sole-trader engine: Umi's profit sits on top of other earned income --- */
+function itPA(x){ return x>100000 ? Math.max(0, IT.pa-(x-100000)/2) : IT.pa; }
+function itOn(x){ const t=Math.max(0,x-itPA(x)); const w1=IT.basic-IT.pa, w2=IT.higher-IT.basic; const b1=Math.min(t,w1), b2=clamp(t-w1,0,w2), b3=Math.max(0,t-w1-w2); return b1*IT.r1+b2*IT.r2+b3*IT.r3; }
+function itMarginal(x){ if(x<=itPA(x)) return 0; if(x<=IT.basic) return IT.r1; if(x<=100000) return IT.r2; if(x<=IT.higher) return 0.60; return IT.r3; }
+function soleCalc(profit){
+  const other=Math.max(0,+state.tax.otherIncome||0), total=other+profit;
+  const it=itOn(total)-itOn(other);
+  const ni=clamp(profit-IT.pa,0,IT.basic-IT.pa)*IT.ni1 + Math.max(0,profit-IT.basic)*IT.ni2;
+  const tax=it+ni;
+  const marginal=itMarginal(total) + (profit<=IT.pa?0: profit<=IT.basic? IT.ni1 : IT.ni2);
+  const pa=itPA(total); const band = total<=pa?'allowance':total<=IT.basic?'basic':total<=IT.higher?'higher':'additional';
+  return { tax, eff: profit? tax/profit:0, band, marginal, lower:IT.basic, upper:IT.higher, other, total, it, ni };
+}
+function renderTax(){
+  const tx = currentTax(), b = book(), isLtd = state.tax.entity==='ltd'; const other=Math.max(0,+state.tax.otherIncome||0);
+  $$('#entitySeg button').forEach(x=>x.classList.toggle('on',x.dataset.e===state.tax.entity));
+  $('#assocWrap').style.display = isLtd?'flex':'none'; $('#assocV').textContent = state.tax.associated;
+  $('#otherWrap').style.display = isLtd?'none':'flex'; if(document.activeElement!==$('#tx_other')) $('#tx_other').value = other||'';
+  $('#taxYearLbl').textContent = isLtd ? 'Corporation tax, FY starting 1 April 2026' : 'Income tax and Class 4 NI, 2026/27 rates to verify';
+  const lo = tx.lower, hi = tx.upper, scale = isLtd? hi*1.25 : Math.max(hi*1.25, (other+tx.profit)*1.15); const xp = v=>clamp(v/scale*100,0,100);
+  const total=other+tx.profit;
+  $('#band').innerHTML = isLtd
+    ? `<div class="seg-b a" style="left:0;width:${xp(lo)}%"></div><div class="seg-b b" style="left:${xp(lo)}%;width:${xp(hi)-xp(lo)}%"></div><div class="seg-b c" style="left:${xp(hi)}%;width:${100-xp(hi)}%"></div><div class="lab" style="left:${xp(lo)/2}%">19%</div><div class="lab" style="left:${(xp(lo)+xp(hi))/2}%">marginal relief, 26.5% on each extra £</div><div class="lab" style="left:${(xp(hi)+100)/2}%">25%</div><div class="lab lim" style="left:${xp(lo)}%">${gbp(lo)}</div><div class="lab lim" style="left:${xp(hi)}%">${gbp(hi)}</div><div class="you" style="left:${xp(tx.profit)}%">you, ${gbp(tx.profit)}</div>`
+    : `<div class="seg-b a" style="left:0;width:${xp(IT.pa)}%"></div><div class="seg-b" style="left:${xp(IT.pa)}%;width:${xp(IT.basic)-xp(IT.pa)}%;background:#E6F6F0"></div><div class="seg-b b" style="left:${xp(IT.basic)}%;width:${xp(IT.higher)-xp(IT.basic)}%"></div><div class="seg-b c" style="left:${xp(IT.higher)}%;width:${100-xp(IT.higher)}%"></div>${other?`<div class="seg-b other" style="left:0;width:${xp(other)}%"></div><div class="seg-b umi" style="left:${xp(other)}%;width:${Math.max(0.6,xp(total)-xp(other))}%"></div>`:''}<div class="lab" style="left:${xp(IT.pa)/2}%">0%</div><div class="lab" style="left:${(xp(IT.pa)+xp(IT.basic))/2}%">20% + 6% NI</div><div class="lab" style="left:${(xp(IT.basic)+xp(IT.higher))/2}%">40% + 2% NI</div><div class="lab" style="left:${(xp(IT.higher)+100)/2}%">45%</div><div class="lab lim" style="left:${xp(IT.pa)}%">${gbp(IT.pa)}</div><div class="lab lim" style="left:${xp(IT.basic)}%">${gbp(IT.basic)}</div><div class="lab lim" style="left:${xp(IT.higher)}%">${gbp(IT.higher)}</div><div class="you" style="left:${xp(total)}%">${other?`Umi ${gbp(tx.profit)} on top of ${gbp(other)}`:`you, ${gbp(tx.profit)}`}</div>`;
+  $('#taxStats').innerHTML = `<div class="stat"><div class="l">Projected profit</div><div class="v">${gbp(tx.profit)}</div></div><div class="stat"><div class="l">Tax on it</div><div class="v">${gbp(tx.tax)}</div></div><div class="stat"><div class="l">Effective rate</div><div class="v">${pctPlain(tx.eff,1)}</div></div><div class="stat"><div class="l">Marginal rate</div><div class="v">${pctPlain(tx.marginal,1)}<small>on the next sale</small></div></div><div class="stat"><div class="l">Keep after tax</div><div class="v">${gbp(tx.profit-tx.tax)}</div></div>`;
+  $('#projSlider').max = isLtd ? Math.round(hi*1.25) : 150000; $('#projSlider').value = tx.profit; $('#projV').textContent = gbp(tx.profit) + (state.tax.override==null?' (projection)':' (what-if)');
+  const room = lo - tx.profit;
+  $('#taxNote').innerHTML = isLtd
+    ? (tx.band==='small' ? `<b>You are in the small-profits band.</b> ${gbp(room)} of headroom before marginal relief starts. With ${state.tax.associated} companies under common control the £50,000 limit is split ${state.tax.associated} ways, ${gbp(lo)} each. Only limited companies count; Umi trading as an individual does not, so if that is the position, switch to the sole trader view.` : tx.band==='marginal' ? `<b>You are in the marginal relief band.</b> Every extra pound of profit is taxed at 26.5%, higher than the 25% main rate. This is the band to avoid ending the year in: a pension contribution or a deliberate purchase before year end drops you back under ${gbp(lo)}.` : `<b>Main rate.</b> Flat 25%. At this level it is worth an accountant's view on salary versus dividends.`)
+    : (other ? `<b>Sole trader view.</b> Umi's ${gbp(tx.profit)} is taxed from ${gbp(other)} upwards, so income tax on it is ${gbp(tx.it)} and Class 4 NI, which looks at Umi's profit alone, is ${gbp(tx.ni)}. The next sale keeps ${gbp(100-tx.marginal*100)} in every £100. Enter salary and other earned income here, not dividends: dividends stack above earned income and are taxed at their own rates.` : `<b>Sole trader view.</b> Assumes Umi is your only taxable income this year, so the personal allowance and basic band are all Umi's. If Greymill or ARIO pay you a salary, enter it above and every after-tax figure in the book moves with it. Class 4 NI is included; the personal allowance tapers above £100,000.`);
+  const owed = tx.tax * (b.ytd/Math.max(tx.profit,1));
+  $('#reserveStats').innerHTML = `<div class="stat"><div class="l">Set aside</div><div class="v">${gbp(state.taxReserve)}</div></div><div class="stat"><div class="l">Owed on realised</div><div class="v">${gbp(owed)}</div></div><div class="stat"><div class="l">Shortfall</div><div class="v ${owed-state.taxReserve>0?'dn':'up'}">${gbp(owed-state.taxReserve)}</div></div><div class="stat"><div class="l">Per £100 profit</div><div class="v">${gbp(tx.marginal*100)}</div></div>`;
+  const pctV = b.rolling/state.tax.vatThreshold;
+  $('#vatRadar').innerHTML = `<div class="bench"><div class="b"><span>${gbp(b.rolling)} of ${gbp(state.tax.vatThreshold)}</span><div class="bar"><i style="width:${clamp(pctV*100,0,100)}%;background:${pctV>0.85?'var(--loss)':pctV>0.7?'var(--warn)':'var(--gain)'}"></i><em style="left:85%"></em></div><span class="r">${Math.round(pctV*100)}%</span></div></div><p class="small mt8">Under the second-hand margin scheme, VAT would apply to your margin rather than the full price, so registration is survivable, but pricing changes. The marker is the 85% early warning.${!isLtd?' Making Tax Digital for income tax starts at £50,000 of gross income (turnover, not profit) from April 2026 and £30,000 from April 2027; verify with your accountant.':''}</p>`;
+  $('#bandTable').innerHTML = isLtd ? `<table><thead><tr><th>Band</th><th class="r">From</th><th class="r">To</th><th class="r">Rate</th></tr></thead><tbody><tr><td>Small profits</td><td class="r">£0</td><td class="r">${gbp(lo)}</td><td class="r">19%</td></tr><tr><td>Marginal relief</td><td class="r">${gbp(lo)}</td><td class="r">${gbp(hi)}</td><td class="r">19% → 25%</td></tr><tr><td>Main</td><td class="r">${gbp(hi)}</td><td class="r">—</td><td class="r">25%</td></tr></tbody></table><p class="small mt8">Statutory limits £50,000 and £250,000 divided by ${state.tax.associated}, the number of companies under common control. Marginal relief fraction 3/200.</p>` : `<table><thead><tr><th>Band</th><th class="r">From</th><th class="r">To</th><th class="r">Rate</th></tr></thead><tbody><tr><td>Personal allowance</td><td class="r">£0</td><td class="r">${gbp(IT.pa)}</td><td class="r">0%</td></tr><tr><td>Basic</td><td class="r">${gbp(IT.pa)}</td><td class="r">${gbp(IT.basic)}</td><td class="r">20% + 6% NI</td></tr><tr><td>Higher</td><td class="r">${gbp(IT.basic)}</td><td class="r">${gbp(IT.higher)}</td><td class="r">40% + 2% NI</td></tr><tr><td>Additional</td><td class="r">${gbp(IT.higher)}</td><td class="r">—</td><td class="r">45% + 2% NI</td></tr></tbody></table><p class="small mt8">2025/26 figures, frozen to 2028 at the last Budget; Class 4 NI limits assumed equal to the allowance and the basic-rate ceiling. Verify each April.</p>`;
+}
+$('#tx_other').addEventListener('change',e=>{ state.tax.otherIncome=Math.max(0,+e.target.value||0); renderAll(); toast(state.tax.otherIncome?`Umi now taxed on top of ${gbp(state.tax.otherIncome)}`:'Umi taxed as your only income'); });
+
+/* --- fresh start with the trading position asked up front --- */
+function freshStart(){
+  modal(`<h2>Start using it for real</h2><p>This clears the demo book, clients, requests, watchlist, invoices and ledger for this workspace and sets your opening numbers. The catalogue and the simulated market stay. You can come back to the demo from Settings.</p><div class="form">
+    <div class="f" style="grid-column:span 6"><label>Workspace name</label><input id="fs_name" value="Umi Sneakers"></div>
+    <div class="f" style="grid-column:span 6"><label>Trading as</label><select id="fs_entity"><option value="sole" ${state.tax.entity!=='ltd'?'selected':''}>Sole trader (an individual)</option><option value="ltd" ${state.tax.entity==='ltd'?'selected':''}>Limited company</option></select></div>
+    <div class="f" style="grid-column:span 6" id="fs_assocWrap"><label>Companies you control</label><input id="fs_assoc" type="number" min="1" value="${state.tax.associated||3}"><span class="hint">Only limited companies count</span></div>
+    <div class="f" style="grid-column:span 6" id="fs_otherWrap"><label>Other earned income this tax year</label><div class="money"><input id="fs_other" type="number" value="${state.tax.otherIncome||''}" placeholder="0"></div><span class="hint">Salary from elsewhere. Umi's profit is taxed on top of it.</span></div>
+    <div class="f" style="grid-column:span 4"><label>Cash in the business today</label><div class="money"><input id="fs_cash" type="number" placeholder="3400"></div></div>
+    <div class="f" style="grid-column:span 4"><label>Already set aside for tax</label><div class="money"><input id="fs_res" type="number" value="0"></div></div>
+    <div class="f" style="grid-column:span 4"><label>Monthly profit target</label><div class="money"><input id="fs_target" type="number" value="1800"></div></div>
+    <div class="f" style="grid-column:span 6"><label>Hours a week you put in</label><input id="fs_hours" type="number" value="5"></div>
+    <div class="f" style="grid-column:span 6"><label style="display:flex;gap:8px;align-items:center;margin-top:22px"><input type="checkbox" id="fs_keepcli"> Keep the demo clients and requests as examples</label></div>
+  </div><div class="acts"><button class="btn secondary" data-close>Not yet</button><button class="btn signal" id="fs_ok">Clear the demo and start</button></div>`);
+  const syncEnt=()=>{ const ltd=$('#fs_entity').value==='ltd'; $('#fs_assocWrap').style.display=ltd?'':'none'; $('#fs_otherWrap').style.display=ltd?'none':''; }; syncEnt(); $('#fs_entity').addEventListener('change',syncEnt);
+  $('#fs_ok').addEventListener('click',()=>{
+    const name=$('#fs_name').value.trim()||'My workspace'; const keep=$('#fs_keepcli').checked;
+    state.positions=[]; state.watch=[]; state.history=[]; state.invoices=[]; state.imgs={}; state.evid={}; state.briefDone={}; state.hours={ [MONTH]: Math.round((+$('#fs_hours').value||0)*TODAY.getDate()/7) };
+    if(!keep){ state.clients=[]; state.requests=[]; }
+    state.funnel={ inbound:0, quoted:0, paid:0 }; state.ig.queue=[]; state.shopify.orders=[];
+    state.cash=+$('#fs_cash').value||0; state.opening=state.cash; state.taxReserve=+$('#fs_res').value||0; state.target=+$('#fs_target').value||1800;
+    state.tax.entity=$('#fs_entity').value; state.tax.associated=Math.max(1,+$('#fs_assoc').value||1); state.tax.otherIncome=Math.max(0,+$('#fs_other').value||0); state.tax.override=null;
+    state.ledger=[]; ledSeq=0; ledgerAdd({ type:'other', ref:'opening', desc:'Opening cash balance', cash:0, seq:ledSeq++ });
+    state.workspace=name; TENANTS[state.ws].name=name; TENANTS[state.ws].desc='Live workspace'; state.demo=false;
+    closeModal(); go('add'); renderAll(); toast(`${name} is live. Add your first position.`);
+  });
+}
+
+(function(){ const t=SPEC.find(x=>x.n==='Tax engine'); if(t){ t.h += ' Sole trader: income tax = tax on (other earned income + Umi profit) \u2212 tax on other earned income alone, so Umi is taxed from the top of your salary upwards; Class 4 NI on Umi profit alone (6% between \u00a312,570 and \u00a350,270, 2% above); marginal rate read at the combined total, 60% through the allowance taper.'; t.d += ' tax.otherIncome.'; } })();
 </script>
 <script>
 /* ============================================================
