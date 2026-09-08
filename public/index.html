@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
@@ -599,6 +600,27 @@ code{font-family:var(--mono);font-size:12px;background:var(--paper);padding:1px 
 .band .seg-b.other{top:21px;height:3px;border-radius:2px;background:var(--ink-3);opacity:.55}
 .band .seg-b.umi{top:21px;height:3px;border-radius:2px;background:var(--ink)}
 tr.excl td{color:var(--ink-3)}
+
+/* v6.3 aesthetics: real-font wrapping fixes */
+.gatebox{width:340px}
+.gatebox .alt2{flex-wrap:nowrap;white-space:nowrap}
+.gatebox .msg{text-align:center}
+input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px var(--surface) inset;-webkit-text-fill-color:var(--ink);transition:background-color 9999s ease-out}
+.rail-foot{display:flex;flex-direction:column;gap:8px}
+.rail-foot>span{display:block;line-height:1.4}
+.rail-foot .btns{display:flex;flex-wrap:wrap;gap:6px}
+.rail-foot .btns .btn{margin:0}
+.rail-foot .ver{margin-top:2px}
+.kpi .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kpi .s{line-height:1.35}
+@media (max-width:1400px){.kpis,.kpis.eight{grid-template-columns:repeat(4,1fr)}.kpis .kpi:nth-child(4n){border-right:0}.kpis .kpi:nth-child(n+5){border-top:1px solid var(--line)}}
+@media (max-width:820px){.kpis,.kpis.eight{grid-template-columns:repeat(2,1fr)}.kpis .kpi:nth-child(4n){border-right:1px solid var(--line)}.kpis .kpi:nth-child(2n){border-right:0}.kpis .kpi:nth-child(n+3){border-top:1px solid var(--line)}}
+#capPanel .ph{flex-wrap:wrap;row-gap:8px}
+.legend{flex-wrap:nowrap}.legend span,.legend>*{white-space:nowrap}
+.tape .lbl{position:relative}.tape .lbl::after{content:"";position:absolute;left:100%;top:0;bottom:0;width:32px;background:linear-gradient(90deg,var(--surface),rgba(255,255,255,0));pointer-events:none}
+#dl_run{white-space:nowrap}
+.btn{white-space:nowrap}
+.vh h1{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -900,7 +922,7 @@ tr.excl td{color:var(--ink-3)}
         <div class="panel c8"><div class="ph"><h2>Today</h2><span class="sub" id="cliTodayCount"></span></div><div class="alist" id="cliToday"></div></div>
         <div class="panel c4"><div class="ph"><h2>Gross profit by tier</h2><span class="sub">Realised, all time</span></div><div id="cliTier"></div></div>
         <div class="panel c12 tight">
-          <div class="toolbar"><input class="search" id="cliSearch" placeholder="Name, club, brand, size, handle, tag"><div class="chips" id="cliChips"><button data-chip="all" class="on">All</button><button data-chip="due">Due</button><button data-chip="quiet">Quiet</button><button data-chip="owed">Owed</button><button data-chip="a">Tier A</button><button data-chip="agents">Agents</button><button data-chip="new">New</button></div><div class="sp"></div><span class="small" id="cliCount"></span></div>
+          <div class="toolbar"><input class="search" id="cliSearch" placeholder="Search clients"><div class="chips" id="cliChips"><button data-chip="all" class="on">All</button><button data-chip="due">Due</button><button data-chip="quiet">Quiet</button><button data-chip="owed">Owed</button><button data-chip="a">Tier A</button><button data-chip="agents">Agents</button><button data-chip="new">New</button></div><div class="sp"></div><span class="small" id="cliCount"></span></div>
           <div style="overflow:auto"><table id="cliTable"></table></div>
           <div class="small" id="cliFoot" style="padding:10px 18px;border-top:1px solid var(--line)"></div>
         </div>
@@ -1539,7 +1561,7 @@ function renderSettings(){
   const t=state.tax;
   $('#setForm').innerHTML = `
     <div class="f" style="grid-column:span 6"><label>Outbound shipping per sale</label><div class="money"><input id="s_ship" type="number" value="${state.shipOut}"></div></div>
-    <div class="f" style="grid-column:span 6"><label>Product name</label><input id="s_prod" value="${state.ui.product||'Sizemill'}"><span class="hint">Placeholder brand for the platform; Umi Sneakers is the first workspace.</span></div>
+    <div class="f" style="grid-column:span 6"><label>Product name</label><input id="s_prod" value="${state.ui.product||'Sizemill'}"><span class="hint">Shown on the rail and in the title. Umi Sneakers is the first workspace.</span></div>
     <div class="f" style="grid-column:span 6"><label>Monthly profit target</label><div class="money"><input id="s_target" type="number" value="${state.target}"></div></div>
     <div class="f" style="grid-column:span 6"><label>Hours logged this month</label><input id="s_hours" type="number" value="${state.hours[MONTH]}"></div>
     <div class="f" style="grid-column:span 6"><label>Opening cash balance</label><div class="money"><input id="s_cash" type="number" value="${Math.round(state.opening||0)}"></div><span class="hint">Cash on hand is opening plus the ledger: ${gbp(cashNow())}</span></div>
@@ -1958,7 +1980,7 @@ function renderKpis(){
     <div class="kpi"><div class="l">Mark, ${state.ui.scn.base.toLowerCase()} case</div><div class="v">${gbp(b.mark)}</div><div class="s ${b.unreal>=0?'up':'dn'}">${pct(b.unreal/b.deployed)} unrealised</div></div>
     <div class="kpi"><div class="l">Expected value</div><div class="v">${gbp(b.ev)}</div><div class="s">${gbp(afterTax(b.ev))} after tax</div></div>
     <div class="kpi"><div class="l">Realised this month</div><div class="v ${b.mtd>=0?'':'dn'}">${gbp(b.mtd)}</div><div class="s">${Math.round(b.mtd/state.target*100)}% of ${gbp(state.target)}</div></div>
-    <div class="kpi"><div class="l">Velocity return</div><div class="v">${v.gmroi.toFixed(1)}×</div><div class="s">capped velocity, ${Math.round(v.avgDts)}d avg to sell</div></div>
+    <div class="kpi"><div class="l">Velocity return</div><div class="v">${v.gmroi.toFixed(1)}×</div><div class="s">capped, ${Math.round(v.avgDts)}d avg to sell</div></div>
     <div class="kpi"><div class="l">Capital at risk</div><div class="v ${car?'dn':''}">${gbp(car)}</div><div class="s">held ${state.rules.stale.days}+ days</div></div>
     <div class="kpi"><div class="l">Profit per hour</div><div class="v">${gbp(b.phr)}</div><div class="s ${phrDelta>=0?'up':'dn'}">${b.hrs}h, ${pct(phrDelta)} vs ${monthShort(prevMonth())}</div></div>
     <div class="kpi"><div class="l">Marginal tax</div><div class="v">${pctPlain(tx.marginal,1)}</div><div class="s">${state.tax.entity==='ltd'?(tx.band==='small'?'small profits':tx.band==='marginal'?'marginal relief':'main rate'):tx.band+' rate'}</div></div>`;
@@ -2921,7 +2943,7 @@ function renderRail(){
   $('#tbDate').textContent = longDate();
   $$('[data-sim]').forEach(t=>t.style.display='inline-block');
   const acts=clientActions().length; $('#navCliCount').textContent = acts||'';
-  $('#railFoot').innerHTML = `<div class="sync ${cloud.status}" id="syncLine"><i></i>${cloud.label()}</div>` + (state.demo? `<span>Demo data. Market prices are simulated; the book, tax, ledger and clients are real once you start.</span><button class="btn sm signal" id="rf_fresh">Start using it for real</button>` : `<span>Live. Saved in this browser${state.lastSaved?' at '+state.lastSaved.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):''}. Market data is simulated.</span>`) + `<button class="btn sm secondary" id="rf_nav">${state.ui.fullNav?'Daily view':'Show all tabs'}</button>` + (cloud.user? ` <button class="btn sm secondary" id="rf_out">Sign out</button>`:'') + `<div class="ver">${state.ui.product} ${V6}</div>`;
+  $('#railFoot').innerHTML = `<div class="sync ${cloud.status}" id="syncLine"><i></i>${cloud.label()}</div>` + (state.demo? `<span>Demo data. Market prices are simulated; the book, tax, ledger and clients are real once you start.</span>` : `<span>Live${state.lastSaved?', saved '+state.lastSaved.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):''}. Market data is simulated.</span>`) + `<div class="btns">${state.demo?`<button class="btn sm signal" id="rf_fresh">Start using it for real</button>`:''}<button class="btn sm secondary" id="rf_nav">${state.ui.fullNav?'Daily view':'Show all tabs'}</button>${cloud.user?`<button class="btn sm secondary" id="rf_out">Sign out</button>`:''}</div><div class="ver">${state.ui.product} ${V6}</div>`;
   const rf=$('#rf_fresh'); if(rf) rf.addEventListener('click',freshStart);
   $('#rf_nav').addEventListener('click',()=>{ state.ui.fullNav=!state.ui.fullNav; renderRail(); persist(); });
   const ro=$('#rf_out'); if(ro) ro.addEventListener('click',()=>cloud.signOut());
