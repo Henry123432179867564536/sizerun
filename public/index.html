@@ -598,6 +598,7 @@ code{font-family:var(--mono);font-size:12px;background:var(--paper);padding:1px 
 .kpi .v.up{color:var(--gain)} .kpi .v.dn{color:var(--loss)}
 .band .seg-b.other{top:21px;height:3px;border-radius:2px;background:var(--ink-3);opacity:.55}
 .band .seg-b.umi{top:21px;height:3px;border-radius:2px;background:var(--ink)}
+tr.excl td{color:var(--ink-3)}
 </style>
 </head>
 <body>
@@ -1718,7 +1719,7 @@ let dealLast=null;
 function readDeal(){ const srcs={}; $$('#dl_srcs input').forEach(i=>srcs[i.dataset.src]=i.checked); return { q:$('#dl_q').value, size:$('#dl_size').value.trim()||'9', cond:$('#dl_cond').value, cost:+$('#dl_cost').value||0, target:+$('#dl_target').value||0, srcs, fake:$('#dl_fake').classList.contains('on') }; }
 function runDeal(){
   const d = readDeal(); const c = matchCatalog(d.q);
-  if(!c){ $('#dl_out').innerHTML=`<div class="panel"><div class="empty">"${d.q||'…'}" isn't in the catalogue yet. In production this falls through to a live KicksDB search by name or style code; in the demo, pick from the suggestions.</div></div>`; return; }
+  if(!c){ $('#dl_out').innerHTML=`<div class="panel"><div class="empty">"${d.q||'…'}" isn't in the catalogue. Pick one of the suggestions; a live search by name or style code arrives with the KicksDB feed (Connections tab).</div></div>`; return; }
   if(!d.target){ toast('Give it the price you think it sells at'); return; }
   const steps=[['StockX','last sale, ask, bid, 30-day volume'],['GOAT','last sale and lowest ask'],['Grailed','live and sold listings'],['eBay UK','live and sold, fake filter']].filter(s=>d.srcs[s[0].toLowerCase().replace(' uk','')]);
   $('#dl_out').innerHTML = `<div class="panel"><div class="scanning">${steps.map((s,i)=>`<div class="st" id="st${i}"><i></i><b>${s[0]}</b><span class="small">${s[1]}</span></div>`).join('')}</div></div>`;
@@ -1957,7 +1958,7 @@ function renderKpis(){
     <div class="kpi"><div class="l">Mark, ${state.ui.scn.base.toLowerCase()} case</div><div class="v">${gbp(b.mark)}</div><div class="s ${b.unreal>=0?'up':'dn'}">${pct(b.unreal/b.deployed)} unrealised</div></div>
     <div class="kpi"><div class="l">Expected value</div><div class="v">${gbp(b.ev)}</div><div class="s">${gbp(afterTax(b.ev))} after tax</div></div>
     <div class="kpi"><div class="l">Realised this month</div><div class="v ${b.mtd>=0?'':'dn'}">${gbp(b.mtd)}</div><div class="s">${Math.round(b.mtd/state.target*100)}% of ${gbp(state.target)}</div></div>
-    <div class="kpi"><div class="l">Velocity return</div><div class="v">${v.gmroi.toFixed(1)}×</div><div class="s">annualised, ${Math.round(v.avgDts)}d avg to sell</div></div>
+    <div class="kpi"><div class="l">Velocity return</div><div class="v">${v.gmroi.toFixed(1)}×</div><div class="s">capped velocity, ${Math.round(v.avgDts)}d avg to sell</div></div>
     <div class="kpi"><div class="l">Capital at risk</div><div class="v ${car?'dn':''}">${gbp(car)}</div><div class="s">held ${state.rules.stale.days}+ days</div></div>
     <div class="kpi"><div class="l">Profit per hour</div><div class="v">${gbp(b.phr)}</div><div class="s ${phrDelta>=0?'up':'dn'}">${b.hrs}h, ${pct(phrDelta)} vs ${monthShort(prevMonth())}</div></div>
     <div class="kpi"><div class="l">Marginal tax</div><div class="v">${pctPlain(tx.marginal,1)}</div><div class="s">${state.tax.entity==='ltd'?(tx.band==='small'?'small profits':tx.band==='marginal'?'marginal relief':'main rate'):tx.band+' rate'}</div></div>`;
@@ -2036,14 +2037,14 @@ function renderDealResult(c, d){
   const u = underwrite(c,d,v); const links = extLinks(c,d.size);
   const pmin=v.pool.length?Math.min(...v.pool):v.p25, pmax=v.pool.length?Math.max(...v.pool):v.p95; const lo=Math.min(pmin, d.target)*0.94, hi=Math.max(pmax, d.target)*1.06; const x=p=>clamp((p-lo)/(hi-lo)*100,0,100);
   const why = { buy:'Clears every hurdle in your mandate with room to spare.', watch: d.cost? `${u.fails?u.fails+' hurdle missed':'Thin on '+(u.mids?u.mids+' hurdles':'score')}. Buy only against a named client or at a lower cost.` : 'Add what you can buy it for and the mandate scores it.', pass:'Fails the mandate. Not a bad product, a bad price.' }[u.decision];
-  const compRow = (x,live)=>`<tr class="${x.fake?'fake':''}"><td>${x.title}</td><td>${x.cond||''}</td><td class="small">${x.loc||''}${x.fb!=null?', '+x.fb+' fb':''}${x.score?', '+x.score+'\u2605':''}</td><td class="small">${live?(x.type||(x.days!=null?x.days+'d listed':'')):x.date}</td><td class="r">${gbp(x.price)}</td></tr>`;
+  const compRow = (x,live)=>`<tr class="${x.fake?'fake':''}${x.excl?' excl':''}"><td>${x.title}</td><td>${x.cond||''}</td><td class="small">${x.loc||''}${x.fb!=null?', '+x.fb+' fb':''}${x.score?', '+x.score+'\u2605':''}</td><td class="small">${live?(x.type||(x.days!=null?x.days+'d listed':'')):x.date}</td><td class="r">${gbp(x.price)}</td><td class="r" style="white-space:nowrap">${compCell(x,live)}</td></tr>`;
   const byDate=(a,b)=>(b.date||'').localeCompare(a.date||'');
-  const compTable = (rows,live,title,link,soldLink)=>{ rows=live?rows:[...rows].sort(byDate); return `<div class="panel tight"><div class="src-h"><b>${title}</b><span class="small">${rows.filter(x=>x.fake).length?rows.filter(x=>x.fake).length+' filtered as likely fakes. ':''}<a href="${link}" target="_blank" rel="noopener">Open live</a>${soldLink?`<a href="${soldLink}" target="_blank" rel="noopener">Open sold</a>`:''}</span></div><table><thead><tr><th>Listing</th><th>Condition</th><th>Seller</th><th>${live?'Listed':'Sold'}</th><th class="r">Price</th></tr></thead><tbody>${rows.map(x=>compRow(x,live)).join('')}</tbody></table></div>`; };
+  const compTable = (rows,live,title,link,soldLink)=>{ rows=live?rows:[...rows].sort(byDate); return `<div class="panel tight"><div class="src-h"><b>${title}</b><span class="small">${rows.filter(x=>x.fake).length?rows.filter(x=>x.fake).length+' filtered as likely fakes. ':''}<a href="${link}" target="_blank" rel="noopener">Open live</a>${soldLink?`<a href="${soldLink}" target="_blank" rel="noopener">Open sold</a>`:''}</span></div><table><thead><tr><th>Listing</th><th>Condition</th><th>Seller</th><th>${live?'Listed':'Sold'}</th><th class="r">Price</th><th class="r">Quality</th></tr></thead><tbody>${rows.map(x=>compRow(x,live)).join('')}</tbody></table></div>`; };
   $('#dl_out').innerHTML = `
     <div class="decision ${u.decision}"><div><div class="d">${u.decision.toUpperCase()}</div><div class="why">${c.name}, UK ${d.size}, ${d.cond}. ${why}</div></div><div class="sc">${u.score}<small>Umi score / 100</small></div></div>
     <div class="panel"><div class="metrics" style="grid-template-columns:repeat(4,1fr)"><div class="metric"><div class="l">Expected net profit</div><div class="v ${u.expProfit>=0?'up':'dn'}">${d.cost?gbp(u.expProfit):'—'}</div><div class="small">probability-weighted, before tax</div></div><div class="metric"><div class="l">After incremental tax</div><div class="v">${d.cost?gbp(u.expProfit-u.ct):'—'}</div><div class="small">${gbp(u.ct)} more corporation tax on this deal</div></div><div class="metric"><div class="l">Cash-on-cash ROI</div><div class="v">${d.cost?pct(u.roi):'—'}</div><div class="small">against ${gbp(d.cost)} deployed</div></div><div class="metric"><div class="l">Days to sell, est.</div><div class="v">${u.dts}</div><div class="small">${gbp(d.cost?u.expProfit/u.dts:0,2)} a day</div></div><div class="metric"><div class="l">Comp confidence</div><div class="v">${u.conf}/100</div><div class="small">${v.pool.length} cleaned comps</div></div><div class="metric"><div class="l">Liquidity</div><div class="v">${u.liq}/100</div><div class="small">~${c.wk} sales a week, size premium ${pct(sizeMult(c,d.size)-1,0)}</div></div><div class="metric"><div class="l">Your price percentile</div><div class="v">${Math.round(v.pct*100)}th</div><div class="small">${v.cls}</div></div><div class="metric"><div class="l">Break-even</div><div class="v">${d.cost?gbp(breakEven({cost:d.cost,inbound:0,channel:'direct'})):'—'}</div><div class="small">direct, incl. shipping</div></div></div>
       <div class="dist mt12"><div class="rng" style="left:${x(pmin)}%;width:${x(pmax)-x(pmin)}%"></div><div class="iqr" style="left:${x(v.p25)}%;width:${x(v.p80)-x(v.p25)}%"></div><div class="med" style="left:${x(v.p50)}%"></div><div class="you" style="left:${x(d.target)}%">you ${gbp(d.target)}</div><div class="lab" style="left:${x(v.p25)}%;top:34px">p25 ${gbp(v.p25)}</div><div class="lab" style="left:${x(v.p50)}%;top:48px">median ${gbp(v.p50)}</div><div class="lab" style="left:${x(v.p80)}%;top:34px">p80 ${gbp(v.p80)}</div></div>
-      <div class="row-between mt12" style="flex-wrap:wrap;gap:8px"><div class="small">Scenario prices: ${state.ui.scn.bear.toLowerCase()} ${gbp(v.p25)} (${pctPlain(u.P.bear)}), ${state.ui.scn.base.toLowerCase()} ${gbp(d.target)} (${pctPlain(u.P.base)}), ${state.ui.scn.bull.toLowerCase()} ${gbp(v.p80)} (${pctPlain(u.P.bull)}). Fake filter removed ${v.removed} listings.</div><div><button class="btn secondary sm" id="dl_watch">Watch at ${gbp(v.p25)}</button> <button class="btn secondary sm" id="dl_chart">Price history</button> <button class="btn signal sm" id="dl_create">Create position with these numbers</button></div></div></div>
+      <div class="row-between mt12" style="flex-wrap:wrap;gap:8px"><div class="small">Scenario prices: ${state.ui.scn.bear.toLowerCase()} ${gbp(v.p25)} (${pctPlain(u.P.bear)}), ${state.ui.scn.base.toLowerCase()} ${gbp(d.target)} (${pctPlain(u.P.base)}), ${state.ui.scn.bull.toLowerCase()} ${gbp(v.p80)} (${pctPlain(u.P.bull)}). Fake filter removed ${v.removed} listing${v.removed===1?'':'s'}${v.excluded?`; you excluded ${v.excluded}`:''}. Every comp carries a quality score; exclude any you don't trust and the verdict recomputes.</div><div><button class="btn secondary sm" id="dl_watch">Watch at ${gbp(v.p25)}</button> <button class="btn secondary sm" id="dl_chart">Price history</button> <button class="btn signal sm" id="dl_create">Create position with these numbers</button></div></div></div>
     <div class="grid g-12">
       <div class="panel c6"><div class="ph"><h2>Why it scored ${u.score}</h2><span class="sub">Against your mandate</span></div><div class="checks">${u.checks.map(k=>`<div class="c"><i class="${k[1]}"></i><div><div>${k[0]}: <b>${k[2]}</b></div><div class="d">${k[3]}</div></div></div>`).join('')}</div></div>
       <div class="c6" style="display:flex;flex-direction:column;gap:14px">
@@ -2056,6 +2057,7 @@ function renderDealResult(c, d){
   $('#dl_create').addEventListener('click',()=>{ $('#a_name').value=c.name; $('#a_brand').value=c.brand; $('#a_size').value=d.size; $('#a_cond').value=d.cond; $('#a_cost').value=d.cost||''; $('#a_bear').value=v.p25; $('#a_base').value=d.target; $('#a_bull').value=v.p80; go('add'); renderAddPreview(); toast('Prefilled from Deal Lab'); });
   $('#dl_watch').addEventListener('click',()=>{ state.watch.push({ id:'w'+uid(), mk:c.id, size:d.size, target:v.p25 }); renderAll(); toast(`Watching ${c.name} at ${gbp(v.p25)}`); });
   $('#dl_chart').addEventListener('click',()=>{ mkSel=c.id; go('market'); renderMarket(); });
+  $$('#dl_out [data-cx]').forEach(b=>b.addEventListener('click',()=>{ compToggle(c,d,b.dataset.cx,b.dataset.mode); renderDealResult(c,d); }));
 }
 /* supplier list */
 function underwriteList(){
@@ -2106,7 +2108,7 @@ function renderCashPanels(){
   const bar=(l,v,col)=>`<div class="wbar" style="grid-template-columns:110px 1fr 60px"><span>${l}</span><div class="bar" style="height:8px;background:var(--paper);border-radius:4px;position:relative"><i style="position:absolute;left:0;top:0;height:100%;border-radius:4px;width:${v/10}%;background:${col}"></i></div><span class="r">${gbp(v)}</span></div>`;
   $('#cashRule').innerHTML = bar('Tax reserve',reserve,'var(--ink)')+bar('Reinvest',reinvest,'var(--signal)')+bar('Owner buffer',bufA,'var(--bear)')+`<div class="row-between mt8"><span class="small">Reserve is your marginal rate (${pctPlain(tx.marginal,1)}); buffer is what you pay yourself</span><span class="small">Buffer <input type="number" id="cr_buf" value="${buf}" style="width:52px;border:1px solid var(--line-2);border-radius:4px;padding:2px 6px;text-align:right">%</span></div><div class="note mt8">Realised ${gbp(b.mtd)} this month means <b>${gbp(b.mtd*reserve/1000)}</b> to the tax pot, <b>${gbp(b.mtd*reinvest/1000)}</b> back into stock, <b>${gbp(b.mtd*bufA/1000)}</b> to you.</div>`;
   $('#cr_buf').addEventListener('change',e=>{ state.cashRule.buffer=clamp(+e.target.value||0,0,80); renderCashPanels(); });
-  $('#gmroiBox').innerHTML = `<div style="font-size:30px;font-weight:500;letter-spacing:-.02em">${v.gmroi.toFixed(1)}×</div><div class="small">expected profit per £1 of stock, annualised on a ${Math.round(v.avgDts)}-day average sell time</div><div class="note mt12">${v.gmroi>=4?'Above the 4× target. Faster turns are doing the work.':`Target is 4×. Getting the average sell time from ${Math.round(v.avgDts)} to ${Math.round(v.avgDts*0.75)} days is worth more than another 5% on price.`}</div><p class="small mt8">Capped at 12× and driven by estimated sell times, so treat it as a ranking of how you are running the book, not a forecast.</p>`;
+  $('#gmroiBox').innerHTML = `<div style="font-size:30px;font-weight:500;letter-spacing:-.02em">${v.gmroi.toFixed(1)}×</div><div class="small">expected profit per £1 of stock at the book’s own sell-through pace, capped at 10×, on a ${Math.round(v.avgDts)}-day average sell time</div><div class="note mt12">${v.gmroi>=4?'Above the 4× target. Faster turns are doing the work.':`Target is 4×. Getting the average sell time from ${Math.round(v.avgDts)} to ${Math.round(v.avgDts*0.75)} days is worth more than another 5% on price.`}</div><p class="small mt8">Capped at 12× and driven by estimated sell times, so treat it as a ranking of how you are running the book, not a forecast.</p>`;
   const q = open().filter(p=>p.status==='stock').map(p=>({ p, L:landed(p)*p.qty, d:days(p.bought), pd:perDay(scen(p).base.profit,days(p.bought)) })).sort((a,b)=>(b.L*b.d)-(a.L*a.d)).slice(0,4);
   $('#unlockBox').innerHTML = q.map(x=>`<div class="al"><span class="sig ${x.d>state.rules.stale.days?'warn':'info'}"></span><div style="min-width:0"><div class="t">${x.p.name}</div><div class="d">${x.d} days held, ${gbp(x.L)} locked, ${gbp(x.pd,2)} a day. Quick price ${gbp(Math.round((x.p.bear+x.p.base)/2/5)*5)}.</div></div><button class="link act" data-u="${x.p.id}">Open</button></div>`).join('') || '<div class="empty">Nothing to unlock.</div>';
   $$('#unlockBox [data-u]').forEach(b=>b.addEventListener('click',()=>openPos(b.dataset.u)));
@@ -2536,7 +2538,7 @@ function renderDataRoom(){
 /* ============================================================
    v6 — client desk, payments on invoices, connections
    ============================================================ */
-const V6 = 'v6.2';
+const V6 = 'v6.3';
 SAVE_KEYS.push('contact','integ','v6demo');
 const CLIENT_TYPES = { player:'Player', agent:'Agent', parent:'Parent or family', buyer:'Buyer' };
 const TOUCH_TYPES = { dm:'Message', call:'Call', meet:'Met', delivered:'Delivered', note:'Note' };
@@ -2661,7 +2663,7 @@ function runAction(a){
 }
 
 /* --- messages: drafted from the book, sent through links you already have --- */
-function messageFor(c, kind, o={}){
+function messageForCore(c, kind, o={}){
   const first=firstName(c); const hey=first?`Hey ${first}`:'Hey'; const sign=state.contact.signoff? `\n${state.contact.signoff}` : '';
   const st=cstats(c);
   if(kind==='arrival' && o.pos){ const p=o.pos; return `${hey}, just landed a ${p.name} in ${p.size}, thought of you straight away. ${gbp(quoteFor(c,p))} delivered, can hold it till Friday.${sign}`; }
@@ -2736,8 +2738,9 @@ function renderInvoices(){
   if(!$('#invTable')) return;
   const inv=(state.invoices||[]).map(normInvoice).slice().sort((a,b)=>(invStatus(a)==='paid')-(invStatus(b)==='paid') || b.date.localeCompare(a.date));
   const owed=inv.reduce((a,i)=>a+invBalance(i),0), nOpen=inv.filter(i=>invStatus(i)!=='paid').length;
-  $('#invTable').innerHTML = `<thead><tr><th>Invoice</th><th>Client</th><th>Items</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Balance</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${inv.map(i=>{ const s=invStatus(i), paid=invPaid(i), bal=invBalance(i); return `<tr><td class="tick">${invLabel(i)}</td><td>${clientName(i.client)||'<span class="mute">—</span>'}</td><td class="small">${i.items.join(', ')}</td><td class="r">${gbp(i.amount)}</td><td class="r">${paid?gbp(paid):'<span class="mute">—</span>'}</td><td class="r ${bal?'':'mute'}">${gbp(bal)}</td><td class="small">${fmtDate(i.due)}</td><td class="${s}">${s==='paid'?'Paid':s==='overdue'?`Overdue ${days(i.due)}d`:paid?'Part paid':'Due'}</td><td class="r" style="white-space:nowrap">${s==='paid'?`<span class="small">settled ${fmtDate((i.payments[i.payments.length-1]||{}).t||i.date)}</span>`:`<button class="link" data-pay="${i.id}">Record payment</button> &nbsp; <button class="link" data-chase="${i.id}">Message</button> &nbsp; <button class="link mute" data-link="${i.id}">Pay link</button>`}</td></tr>`; }).join('')||'<tr><td colspan="9" class="empty">No invoices. Raise one from a client\u2019s record.</td></tr>'}</tbody>` + (owed?`<tfoot><tr><td colspan="9" class="small" style="padding:10px">${gbp(owed)} outstanding across ${nOpen} invoice${nOpen===1?'':'s'}. Money owed is not cash: it reaches the ledger only as payments are recorded.</td></tr></tfoot>`:'');
+  $('#invTable').innerHTML = `<thead><tr><th>Invoice</th><th>Client</th><th>Items</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Balance</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${inv.map(i=>{ const s=invStatus(i), paid=invPaid(i), bal=invBalance(i); return `<tr><td class="tick">${invLabel(i)}</td><td>${clientName(i.client)||'<span class="mute">—</span>'}</td><td class="small">${i.items.join(', ')}</td><td class="r">${gbp(i.amount)}</td><td class="r">${paid?gbp(paid):'<span class="mute">—</span>'}</td><td class="r ${bal?'':'mute'}">${gbp(bal)}</td><td class="small">${fmtDate(i.due)}</td><td class="${s}">${s==='paid'?'Paid':s==='overdue'?`Overdue ${days(i.due)}d`:paid?'Part paid':'Due'}</td><td class="r" style="white-space:nowrap">${s==='paid'?`<span class="small">settled ${fmtDate((i.payments[i.payments.length-1]||{}).t||i.date)}</span>`:`<button class="link" data-pay="${i.id}">Record payment</button> &nbsp; <button class="link" data-send="${i.id}">Send</button> &nbsp; <button class="link" data-chase="${i.id}">Chase</button> &nbsp; <button class="link mute" data-link="${i.id}">Pay link</button>`}</td></tr>`; }).join('')||'<tr><td colspan="9" class="empty">No invoices. Raise one from a client\u2019s record.</td></tr>'}</tbody>` + (owed?`<tfoot><tr><td colspan="9" class="small" style="padding:10px">${gbp(owed)} outstanding across ${nOpen} invoice${nOpen===1?'':'s'}. Money owed is not cash: it reaches the ledger only as payments are recorded.</td></tr></tfoot>`:'');
   $$('#invTable [data-pay]').forEach(b=>b.addEventListener('click',()=>recordPayment(state.invoices.find(x=>x.id===b.dataset.pay))));
+  $$('#invTable [data-send]').forEach(b=>b.addEventListener('click',()=>{ const i=state.invoices.find(x=>x.id===b.dataset.send); const c=state.clients.find(x=>x.id===i.client); if(c) sendMessage(c, messageFor(c,'invoice',{ inv:i })); else toast('No client on this invoice'); }));
   $$('#invTable [data-chase]').forEach(b=>b.addEventListener('click',()=>{ const i=state.invoices.find(x=>x.id===b.dataset.chase); const c=state.clients.find(x=>x.id===i.client); if(c) sendMessage(c, messageFor(c,'chase',{ inv:i })); else toast('No client on this invoice'); }));
   $$('#invTable [data-link]').forEach(b=>b.addEventListener('click',()=>payLinkModal(state.invoices.find(x=>x.id===b.dataset.link))));
 }
@@ -2756,7 +2759,7 @@ function raiseInvoice(c){
   const lines=()=>$$('#mbox [data-ip]:checked').map(i=>{ const p=state.positions.find(x=>x.id===i.dataset.ip); const price=+$(`#mbox [data-price="${p.id}"]`).value||0; return { p, price }; });
   const tot=()=>{ $('#inv_tot').textContent=gbp(lines().reduce((a,l)=>a+l.price*l.p.qty,0)); }; tot();
   $$('#mbox [data-ip],#mbox [data-price]').forEach(el=>el.addEventListener('input',tot));
-  $('#inv_ok').addEventListener('click',()=>{ const ls=lines(); if(!ls.length){ toast('Pick at least one line'); return; } const id=nextInvId(); state.invoices.push({ id, client:c.id, items:ls.map(l=>`${l.p.name} ${l.p.size}${l.p.qty>1?' ×'+l.p.qty:''}`), lines:ls.map(l=>({ pos:l.p.id, price:l.price, qty:l.p.qty })), amount:ls.reduce((a,l)=>a+l.price*l.p.qty,0), date:todayISO(), due:$('#inv_due').value||isoPlus(7), status:'due', pos:ls.map(l=>l.p.id), payments:[], note:$('#inv_note').value.trim() }); logTouch(c,'note',`Raised ${invLabel({id})} for ${gbp(ls.reduce((a,l)=>a+l.price*l.p.qty,0))}`); closeModal(); renderAll(); openClient(c.id); toast(`${invLabel({id})} raised. Record payments as they land.`); });
+  $('#inv_ok').addEventListener('click',()=>{ const ls=lines(); if(!ls.length){ toast('Pick at least one line'); return; } const id=nextInvId(); state.invoices.push({ id, client:c.id, items:ls.map(l=>`${l.p.name} ${l.p.size}${l.p.qty>1?' ×'+l.p.qty:''}`), lines:ls.map(l=>({ pos:l.p.id, price:l.price, qty:l.p.qty })), amount:ls.reduce((a,l)=>a+l.price*l.p.qty,0), date:todayISO(), due:$('#inv_due').value||isoPlus(7), status:'due', pos:ls.map(l=>l.p.id), payments:[], note:$('#inv_note').value.trim() }); logTouch(c,'note',`Raised ${invLabel({id})} for ${gbp(ls.reduce((a,l)=>a+l.price*l.p.qty,0))}`); closeModal(); renderAll(); toast(`${invLabel({id})} raised.`); sendMessage(c, messageFor(c,'invoice',{ inv:state.invoices.find(x=>x.id===id) })); });
 }
 function recordPayment(i){
   normInvoice(i); const bal=invBalance(i); const c=state.clients.find(x=>x.id===i.client);
@@ -2799,7 +2802,7 @@ function openClient(id){
   <div class="dsec"><h3>Wants</h3>${wm.length?`<table>${wm.map(m=>`<tr><td><div>${m.w.item}</div><div class="small">${m.w.size&&m.w.size!=='—'?'UK '+m.w.size+', ':''}budget ${gbp(m.w.budget)}, added ${fmtDate(m.w.added)}</div></td><td class="r small">${m.inStock?`<span class="pill sold">In stock</span>`:m.mk?`market ${gbp(m.mk)} <span class="simtag" data-sim>sim</span>`:'<span class="mute">not in catalogue</span>'}</td><td class="r" style="white-space:nowrap">${m.inStock?`<button class="link" data-wq="${m.inStock.id}">Quote ${gbp(quoteFor(c,m.inStock))}</button> &nbsp; `:''}<button class="link mute" data-wrm="${m.w.id}">Remove</button></td></tr>`).join('')}</table>`:'<div class="small">Nothing on their list. Every "can you get me" goes here so the book can match it the day it lands.</div>'}<div class="form mt8"><div class="f" style="grid-column:span 6"><input id="w_item" placeholder="What they want" list="catList"></div><div class="f" style="grid-column:span 2"><input id="w_size" placeholder="Size" value="${String(c.shoe||'').replace(/^UK\s*/i,'')}"></div><div class="f" style="grid-column:span 2"><div class="money"><input id="w_budget" type="number" placeholder="Budget"></div></div><div class="f" style="grid-column:span 2"><button class="btn sm secondary" id="w_add" style="width:100%">Add</button></div></div></div>
   <div class="dsec"><h3>In stock for them now</h3>${fit.length?`<table>${fit.map(x=>`<tr><td><div class="item">${thumb(x.p,26)}<div class="nm">${x.p.name}</div></div><div class="small">${x.p.size}, ${x.why}</div></td><td class="r"><b>${gbp(x.q)}</b><div class="small">bull ${gbp(x.p.bull)}</div></td><td class="r" style="white-space:nowrap"><button class="link" data-quote="${x.p.id}">Reserve</button> &nbsp; <button class="link" data-offer="${x.p.id}">Offer</button></td></tr>`).join('')}</table>`:'<div class="small">Nothing unreserved in their size or brands.</div>'}</div>
   <div class="dsec"><h3>Orders</h3>${st.sales.length?`<table>${st.sales.slice().reverse().map(p=>{ const r=clamp((p.sold.price-p.bear)/Math.max(1,p.bull-p.bear),0,1); return `<tr><td class="small">${fmtDate(p.sold.date)}</td><td><span class="tick">${p.ticker}</span> ${p.name}</td><td class="r">${gbp(p.sold.price*p.qty)}</td><td class="r ${soldProfit(p)>=0?'up':'dn'}">${gbp(soldProfit(p))}</td><td class="r small">${pctPlain(r)}</td></tr>`; }).join('')}</table>`:'<div class="small">No sales linked yet.</div>'}${c.pre.orders?`<div class="small mt8">Plus ${c.pre.orders} order${c.pre.orders===1?'':'s'} for ${gbp(c.pre.spend)} before the book started; profit on those is estimated.</div>`:''}${st.reserved.length?`<div class="small mt8">Reserved now: ${st.reserved.map(p=>`<span class="tick">${p.ticker}</span> ${gbp(quoteFor(c,p))}`).join(', ')}.</div>`:''}</div>
-  ${st.invs.length?`<div class="dsec"><h3>Invoices</h3><table>${st.invs.slice().reverse().map(i=>{ const s=invStatus(i); return `<tr><td class="tick">${invLabel(i)}</td><td class="small">${i.items.join(', ')}</td><td class="r">${gbp(i.amount)}</td><td class="r ${s}">${s==='paid'?'Paid':s==='overdue'?`Overdue, ${gbp(invBalance(i))}`:`${gbp(invBalance(i))} open`}</td><td class="r">${s!=='paid'?`<button class="link" data-ipay="${i.id}">Record payment</button>`:''}</td></tr>`; }).join('')}</table></div>`:''}
+  ${st.invs.length?`<div class="dsec"><h3>Invoices</h3><table>${st.invs.slice().reverse().map(i=>{ const s=invStatus(i); return `<tr><td class="tick">${invLabel(i)}</td><td class="small">${i.items.join(', ')}</td><td class="r">${gbp(i.amount)}</td><td class="r ${s}">${s==='paid'?'Paid':s==='overdue'?`Overdue, ${gbp(invBalance(i))}`:`${gbp(invBalance(i))} open`}</td><td class="r" style="white-space:nowrap">${s!=='paid'?`<button class="link" data-isend="${i.id}">Send</button> &nbsp; <button class="link" data-ipay="${i.id}">Record payment</button>`:''}</td></tr>`; }).join('')}</table></div>`:''}
   <div class="dsec"><h3>Contact log</h3>${c.log.length?`<div class="tlog">${c.log.slice(0,12).map(l=>`<div class="tl"><span class="small">${fmtDate(l.t)}</span><span class="pill">${TOUCH_TYPES[l.type]||l.type}</span><span>${l.text}</span></div>`).join('')}</div>`:'<div class="small">Nothing logged. Messages sent from here log themselves.</div>'}</div>
   <div class="dsec"><button class="link mute" id="c_rm">Remove ${first} from the book</button></div>`;
   openDrawer(c.name, body, `<span class="small">${st.overdue.length?`<span class="dn">${st.overdue.length} overdue</span>`:''}</span><span style="flex:1"></span><button class="btn secondary" data-close-drawer>Close</button><button class="btn" id="c_save">Save</button>`);
@@ -2814,6 +2817,7 @@ function openClient(id){
   $$('#dBody [data-quote]').forEach(b=>b.addEventListener('click',()=>{ save(); const p=state.positions.find(x=>x.id===b.dataset.quote); p.client=c.id; p.status='reserved'; logTouch(c,'note',`Reserved ${p.ticker} at ${gbp(quoteFor(c,p))}`); renderAll(); openClient(c.id); toast(`${p.ticker} reserved for ${c.name}`); }));
   $$('#dBody [data-offer],#dBody [data-wq]').forEach(b=>b.addEventListener('click',()=>{ save(); const p=state.positions.find(x=>x.id===(b.dataset.offer||b.dataset.wq)); sendMessage(c, messageFor(c,'arrival',{ pos:p })); }));
   $$('#dBody [data-wrm]').forEach(b=>b.addEventListener('click',()=>{ save(); c.wish=c.wish.filter(w=>w.id!==b.dataset.wrm); renderAll(); openClient(c.id); }));
+  $$('#dBody [data-isend]').forEach(b=>b.addEventListener('click',()=>{ save(); sendMessage(c, messageFor(c,'invoice',{ inv:state.invoices.find(x=>x.id===b.dataset.isend) })); }));
   $$('#dBody [data-ipay]').forEach(b=>b.addEventListener('click',()=>{ save(); recordPayment(state.invoices.find(x=>x.id===b.dataset.ipay)); }));
   $('#w_add').addEventListener('click',()=>{ const it=$('#w_item').value.trim(); if(!it){ toast('What do they want?'); return; } save(); c.wish.push({ id:'w'+uid(), item:it, size:$('#w_size').value.trim()||'—', budget:+$('#w_budget').value||0, added:todayISO() }); renderAll(); openClient(c.id); toast('Added to their list'); });
   $('#w_item').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#w_add').click(); });
@@ -3037,6 +3041,68 @@ function renderDataBoxV6(){ renderDataBoxV5(); renderHistoryBox(); }
 renderDataBox = renderDataBoxV6;
 
 $$('.nav[data-view="settings"]').forEach(b=>b.addEventListener('click',()=>{ histAt=0; setTimeout(renderHistoryBox,400); }));
+
+/* --- Deal Lab: every comp carries a quality score and can be accepted or rejected; the verdict recomputes --- */
+SAVE_KEYS.push('compOv');
+const compKey = (c, size, cond) => `${c.id}|${size}|${cond}`;
+function compOv(c, size, cond){ state.compOv = state.compOv || {}; const k = compKey(c, size, cond); state.compOv[k] = state.compOv[k] || { rej: [], acc: [] }; return state.compOv[k]; }
+function compQuality(x, live, cond){
+  let q = live ? 58 : 82;
+  const age = live ? (x.days || 0) : (x.date ? days(x.date) : 30);
+  q -= Math.min(24, Math.round(age / 2.5));
+  if (x.cond && cond && x.cond !== cond) q -= 10;
+  if (x.fb != null && x.fb < 20) q -= 14; else if (x.fb != null && x.fb > 200) q += 4;
+  if (x.score && x.score < 4.5) q -= 8;
+  if (x.fake) q = Math.min(q, 15);
+  return clamp(Math.round(q), 5, 96);
+}
+function verdictFor(c, size, cond, cost, target, srcs, fake){
+  const k = comps(c, size, cond); const ov = compOv(c, size, cond);
+  const tag = (rows, pre) => rows.map((x, i) => { x.cid = pre + i; x.q = compQuality(x, pre.endsWith('L'), cond); if (x.fake && ov.acc.includes(x.cid)) { x.fake = false; x.accepted = true; } x.excl = ov.rej.includes(x.cid); return x; });
+  const gs = srcs.grailed ? tag(fakeFilter(k.grSold, fake), 'gs') : [], es = srcs.ebay ? tag(fakeFilter(k.ebSold, fake), 'es') : [];
+  const grLive = srcs.grailed ? tag(fakeFilter(k.grLive, fake), 'gL') : [], ebLive = srcs.ebay ? tag(fakeFilter(k.ebLive, fake), 'eL') : [];
+  const usable = x => !x.fake && !x.excl;
+  const pool = [ ...(srcs.stockx ? k.stockx.recent.map(x => x.price) : []), ...(srcs.goat ? [k.goat.last] : []), ...gs.filter(usable).map(x => x.price), ...es.filter(usable).map(x => x.price) ];
+  const pct = percentile(pool, target);
+  const p25 = quantile(pool, 0.25), p50 = quantile(pool, 0.5), p80 = quantile(pool, 0.8), p95 = quantile(pool, 0.95);
+  const speed = clamp(c.wk / 120, 0.5, 2);
+  const dts = Math.round((6 + 26 * Math.pow(pct, 2)) / speed);
+  const net = t => netProceeds(t, 'direct');
+  const cls = pct < 0.35 ? 'cheap' : pct < 0.70 ? 'fair' : pct < 0.90 ? 'ambitious' : 'unrealistic';
+  const removed = [gs, es, grLive, ebLive].reduce((a, r) => a + r.filter(x => x.fake).length, 0);
+  const excluded = gs.filter(x => x.excl).length + es.filter(x => x.excl).length;
+  return { k, pool, pct, p25, p50, p80, p95, dts, cls, removed, excluded, gs, es, grLive, ebLive, profitAt: t => (net(t) - cost), roiAt: t => cost ? (net(t) - cost) / cost : 0 };
+}
+function compToggle(c, d, cid, mode){
+  const ov = compOv(c, d.size, d.cond);
+  if (mode === 'rej') { if (!ov.rej.includes(cid)) ov.rej.push(cid); }
+  else if (mode === 'unrej') { ov.rej = ov.rej.filter(x => x !== cid); }
+  else if (mode === 'acc') { if (!ov.acc.includes(cid)) ov.acc.push(cid); }
+  else if (mode === 'unacc') { ov.acc = ov.acc.filter(x => x !== cid); }
+  persist();
+}
+function compCell(x, live){
+  if (live) return `<span class="small">q ${x.q}</span>`;
+  if (x.fake) return `<span class="small">q ${x.q}</span> <button class="link mute" data-cx="${x.cid}" data-mode="acc" title="Count it in the verdict despite the filter">Include anyway</button>`;
+  if (x.accepted) return `<span class="small">q ${x.q}</span> <button class="link mute" data-cx="${x.cid}" data-mode="unacc">Filter again</button>`;
+  if (x.excl) return `<span class="small">q ${x.q}</span> <button class="link" data-cx="${x.cid}" data-mode="unrej">Include</button>`;
+  return `<span class="small">q ${x.q}</span> <button class="link mute" data-cx="${x.cid}" data-mode="rej">Exclude</button>`;
+}
+
+/* --- invoices go out as a message, not a PDF nobody opens --- */
+function messageFor(c, kind, o){
+  o = o || {};
+  if (kind === 'invoice' && o.inv) {
+    const i = o.inv; const first = firstName(c); const hey = first ? `Hey ${first}` : 'Hey'; const sign = state.contact.signoff ? `\n${state.contact.signoff}` : '';
+    const lines = (i.lines && i.lines.length) ? i.lines.map(l => { const p = state.positions.find(x => x.id === l.pos); return `${p ? p.name + ' ' + p.size : 'Item'}${l.qty > 1 ? ' ×' + l.qty : ''}: ${gbp(l.price * l.qty)}`; }) : i.items.map(t => `${t}`);
+    const paid = invPaid(i), bal = invBalance(i);
+    return `${hey}, here's your invoice ${invLabel(i)}:\n${lines.join('\n')}\nTotal ${gbp(i.amount)}${paid ? `, ${gbp(paid)} received, ${gbp(bal)} to go` : ''}. Due ${fmtDate(i.due)}.${state.contact.payNote ? '\n' + state.contact.payNote : ''}${i.note ? '\n' + i.note : ''}${sign}`;
+  }
+  return messageForCore(c, kind, o);
+}
+
+(function(){ const dl=SPEC.find(x=>/deal lab/i.test(x.n)); if(dl){ dl.h += ' Every comp carries a quality score q (sold 82 / live 58, minus up to 24 for age, minus 10 on a condition mismatch, minus 14 under 20 feedback, capped at 15 when the fake filter fires). Any sold comp can be excluded, and a filtered one included, per product, size and condition; the pool, percentiles, scenario prices and verdict recompute from what is left.'; dl.d += ' compOv{key: {rej[], acc[]}}.'; }
+  const inv=SPEC.find(x=>x.n==='Invoices and payments'); if(inv){ inv.p += ' An invoice goes out as a message with its lines, total, balance and due date, through the same WhatsApp and Instagram links.'; } })();
 </script>
 <script>
 /* ============================================================
@@ -3164,7 +3230,7 @@ $('#exportCsv').addEventListener('click',()=>{
   const rows=[['ticker','name','brand','size','qty','cost','inbound','bought','channel','bear','base','bull','status','client','sold_price','sold_date','sold_channel','net_profit','after_tax']];
   state.positions.forEach(p=>{ const pr=p.sold?soldProfit(p):ev(p); rows.push([p.ticker,p.name,p.brand,p.size,p.qty,p.cost,p.inbound||0,p.bought,p.channel,p.bear,p.base,p.bull,p.status,clientName(p.client),p.sold?p.sold.price:'',p.sold?p.sold.date:'',p.sold?p.sold.channel:'',pr.toFixed(2),afterTax(pr).toFixed(2)]); });
   const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`sizerun-${todayISO()}.csv`; a.click(); toast('CSV downloaded');
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`sizemill-${todayISO()}.csv`; a.click(); toast('CSV downloaded');
 });
 
 /* add client / request */
@@ -3178,7 +3244,7 @@ $('#posImport').addEventListener('click',importCsv);
 $('#drExport').addEventListener('click',exportModel);
 $('#specAll').addEventListener('click',()=>{ const all=$$('#specList details'); const open=all.every(d=>d.open); all.forEach(d=>d.open=!open); $('#specAll').textContent=open?'Expand all':'Collapse all'; });
 $$('#ledFilter button').forEach(b=>b.addEventListener('click',()=>{ $$('#ledFilter button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); ledFilter=b.dataset.f; renderLedger(); }));
-$('#ledExport').addEventListener('click',()=>{ const rows=[['date','type','ref','description','cash']].concat(state.ledger.map(e=>[e.t,e.type,e.ref,e.desc,e.cash.toFixed(2)])); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`sizerun-ledger-${todayISO()}.csv`; a.click(); toast('Ledger exported'); });
+$('#ledExport').addEventListener('click',()=>{ const rows=[['date','type','ref','description','cash']].concat(state.ledger.map(e=>[e.t,e.type,e.ref,e.desc,e.cash.toFixed(2)])); const csv=rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n'); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`sizemill-ledger-${todayISO()}.csv`; a.click(); toast('Ledger exported'); });
 $('#ledAdj').addEventListener('click',()=>{ modal(`<h2>Record a cash movement</h2><p>Owner drawings, a top-up, a refund, a fee. Positive is cash in.</p><div class="form"><div class="f" style="grid-column:span 8"><label>What</label><input id="la_desc" placeholder="Owner top-up"></div><div class="f" style="grid-column:span 4"><label>Amount</label><div class="money"><input id="la_amt" type="number" placeholder="500"></div></div></div><div class="acts"><button class="btn secondary" data-close>Cancel</button><button class="btn" id="la_ok">Record</button></div>`); $('#la_ok').addEventListener('click',()=>{ const d=$('#la_desc').value.trim(), v=+$('#la_amt').value||0; if(!d||!v){ toast('Needs a description and an amount'); return; } ledgerAdd({ type:'other', ref:'manual', desc:d, cash:v, seq:ledSeq++ }); closeModal(); renderAll(); toast('Recorded'); }); });
 $('#autoRunAll').addEventListener('click',()=>{ let n=0; state.autos.filter(a=>a.on).forEach(a=>{ const pl=autoPlan(a); n+=pl.n; pl.apply(); }); renderAll(); toast(`${n} actions applied`); });
 $('#a_ccy').addEventListener('change',()=>{ fxHint(); renderAddPreview(); });
