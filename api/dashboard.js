@@ -1,4 +1,4 @@
-// api/dashboard.js - Sizemill admin dashboard (v1.0)
+// api/dashboard.js - Sizemill admin dashboard (v1.1)
 // Served at /admin (vercel.json rewrite). Holds no secrets: the page asks for the
 // admin secret, keeps it in sessionStorage, and sends it to /api/admin on every call.
 // Sections: members and health, platform book, insights, activity, snapshots,

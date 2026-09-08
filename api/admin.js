@@ -1,4 +1,5 @@
-// api/admin.js - Sizemill admin data endpoint (v1.0)
+// api/admin.js - Sizemill admin data endpoint (v1.1)
+// v1.1: wrong secrets are logged per IP and the fifth in 15 minutes locks that address out.
 // Every request carries x-admin-secret and is compared in constant time against
 // SIZEMILL_ADMIN_SECRET. Reads use the Supabase service role (SUPABASE_SERVICE_ROLE_KEY),
 // which never leaves this function. Actions are written to public.admin_audit.
@@ -16,10 +17,12 @@ export default async function handler(req, res) {
   const missing = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SIZEMILL_ADMIN_SECRET'].filter(k => !process.env[k]);
   if (missing.length) return res.status(500).json({ error: 'Missing environment variables: ' + missing.join(', ') + '. Set them in Vercel, Project, Settings, Environment Variables, then redeploy.' });
   const given = String(req.headers['x-admin-secret'] || '');
-  if (!safeEqual(given, SECRET)) { await sleep(600); return res.status(401).json({ error: 'Wrong admin secret' }); }
+  const ip = String(req.headers['x-forwarded-for'] || (req.socket && req.socket.remoteAddress) || '').split(',')[0].trim();
+  const fails = await failedRecently(ip);
+  if (fails >= 5) { await audit('auth_locked', ip, { fails }, ip); return res.status(429).json({ error: 'Too many wrong attempts from this address. Try again in 15 minutes.' }); }
+  if (!safeEqual(given, SECRET)) { await audit('auth_failed', ip, null, ip); await sleep(600 + 400 * fails); return res.status(401).json({ error: fails >= 3 ? `Wrong admin secret. ${5 - fails - 1} attempt${5 - fails - 1 === 1 ? '' : 's'} left before a 15-minute lock.` : 'Wrong admin secret' }); }
   const body = typeof req.body === 'string' ? safeJson(req.body) : (req.body || {});
   const action = String(body.action || 'overview');
-  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   try {
     switch (action) {
       case 'check': return res.status(200).json({ ok: true });
@@ -45,6 +48,7 @@ async function sb(method, path, body, extraHeaders) {
   return text ? safeJson(text) : null;
 }
 async function audit(action, target, detail, ip) { try { await sb('POST', '/rest/v1/admin_audit', { action, target: target || null, detail: detail || null, ip: ip || null }); } catch (e) { /* audit must never block the action */ } }
+async function failedRecently(ip) { if (!ip) return 0; try { const since = new Date(Date.now() - 15 * 60e3).toISOString(); const rows = await sb('GET', `/rest/v1/admin_audit?select=id&action=eq.auth_failed&ip=eq.${encodeURIComponent(ip)}&at=gte.${encodeURIComponent(since)}&limit=10`); return (rows || []).length; } catch (e) { return 0; } }
 async function getBook(owner) { if (!owner) return null; const rows = await sb('GET', `/rest/v1/books?select=id,owner,key,name,state,saved_at&owner=eq.${encodeURIComponent(owner)}&key=eq.main`); return rows && rows[0] || null; }
 
 /* ---------- overview: everything the dashboard needs in one round trip ---------- */
