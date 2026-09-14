@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="en-GB">
 <head>
@@ -10,13 +11,15 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{
-  --paper:#F5F7FA; --surface:#FFFFFF; --ink:#10233F; --ink-2:#4A5A72; --ink-3:#8A97AB;
-  --line:#E4E9F0; --line-2:#D3DBE6;
-  --signal:#2E5BFF; --signal-tint:#EDF1FF;
-  --gain:#0FA37F; --gain-tint:#E6F6F0; --loss:#E24B4B; --loss-tint:#FCEBEB;
-  --warn:#C98A00; --warn-tint:#FFF5DE;
-  --bear:#7A8AA3; --base:#2E5BFF; --bull:#0FA37F;
-  --r-panel:10px; --r-ctl:5px;
+  --paper:#EDEDE8; --paper-2:#E6E6E0; --surface:#FFFFFF; --surface-2:#F7F7F3;
+  --ink:#1B2028; --ink-2:#535B66; --ink-3:#8A9099;
+  --line:#E2E1DA; --line-2:#CCCBC2;
+  --signal:#1F4B85; --signal-tint:#EAF0F7;
+  --gain:#127A5E; --gain-tint:#E6F1EC; --loss:#B23A3A; --loss-tint:#F7EAE8;
+  --warn:#96691A; --warn-tint:#F6EEDB;
+  --brass:#9D7A3A;
+  --bear:#8A8F97; --base:#1F4B85; --bull:#127A5E;
+  --r-panel:9px; --r-ctl:5px;
   --sans:"IBM Plex Sans",-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
@@ -26,7 +29,7 @@ body{font-family:var(--sans);font-size:14px;line-height:1.45;color:var(--ink);ba
 a{color:var(--signal);text-decoration:none}
 button{font:inherit;color:inherit}
 input,select,textarea{font:inherit;color:inherit}
-::selection{background:#D9E2FF}
+::selection{background:#DCE5F0}
 :focus-visible{outline:2px solid var(--signal);outline-offset:2px}
 h1,h2,h3{margin:0;font-weight:500}
 p{margin:0}
@@ -45,7 +48,7 @@ p{margin:0}
 .ws span{color:var(--ink-3)}
 .nav-group{font-size:11px;color:var(--ink-3);padding:12px 8px 4px}
 .nav{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:6px;border:0;background:none;text-align:left;width:100%;cursor:pointer;color:var(--ink-2)}
-.nav:hover{background:#ECEFF4;color:var(--ink)}
+.nav:hover{background:rgba(27,32,40,.05);color:var(--ink)}
 .nav.active{background:var(--surface);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-2)}
 .nav svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .nav .k{margin-left:auto;font-size:11px;color:var(--ink-3);font-family:var(--mono)}
@@ -87,10 +90,10 @@ p{margin:0}
 .ladder .nm{max-width:none}
 .ladder .lh{color:var(--ink-3);font-size:12px;padding:8px 18px 6px;border-bottom:1px solid var(--line);grid-column:1/-1;display:grid;grid-template-columns:subgrid}
 .ladder .lr{grid-column:1/-1;display:grid;grid-template-columns:subgrid;padding:8px 18px;border-bottom:1px solid var(--line);cursor:pointer}
-.ladder .lr:hover{background:#FAFBFD}
+.ladder .lr:hover{background:var(--surface-2)}
 .ladder .lr:last-child{border-bottom:0}
 .ladder .bar{height:10px;background:var(--paper);border-radius:5px;position:relative;overflow:visible}
-.ladder .bar i{position:absolute;left:0;top:0;height:100%;border-radius:5px;background:#C7D3F2}
+.ladder .bar i{position:absolute;left:0;top:0;height:100%;border-radius:5px;background:#B8C6D7}
 .ladder .bar em{position:absolute;top:-3px;width:2px;height:16px;background:var(--ink);border-radius:1px}
 .ladder .bar b{position:absolute;top:-3px;width:16px;height:16px;border-radius:50%;background:var(--surface);border:2px solid var(--signal);transform:translateX(-8px)}
 .ladder .r{text-align:right}
@@ -115,8 +118,8 @@ p{margin:0}
 .verdict .big{font-size:26px;font-weight:500;letter-spacing:-.02em}
 .verdict .big small{font-size:13px;color:var(--ink-3);font-weight:400;margin-left:6px}
 .dist{position:relative;height:66px;margin:10px 0 4px}
-.dist .rng{position:absolute;top:22px;height:8px;border-radius:4px;background:#D8E0F0}
-.dist .iqr{position:absolute;top:22px;height:8px;border-radius:4px;background:#8FA3C8}
+.dist .rng{position:absolute;top:22px;height:8px;border-radius:4px;background:#DEDDD6}
+.dist .iqr{position:absolute;top:22px;height:8px;border-radius:4px;background:#93A3B8}
 .dist .med{position:absolute;top:16px;width:2px;height:20px;background:var(--ink)}
 .dist .you{position:absolute;top:0;transform:translateX(-50%);font-size:11.5px;font-weight:500;white-space:nowrap}
 .dist .you::after{content:"";display:block;width:2px;height:12px;background:var(--signal);margin:1px auto 0}
@@ -162,7 +165,7 @@ p{margin:0}
 .decision .why{font-size:13px;opacity:.85;margin-top:4px}
 .decision .sc{font-size:34px;font-weight:600;text-align:right;line-height:1}
 .decision .sc small{display:block;font-size:11px;opacity:.7;font-weight:400;margin-top:4px}
-.decision.buy{background:#0B6E55} .decision.watch{background:#8A5B00} .decision.pass{background:#9F2E2E}
+.decision.buy{background:#0E6047} .decision.watch{background:#7D5712} .decision.pass{background:#8E3030}
 .checks .c{display:grid;grid-template-columns:18px 1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;align-items:center}
 .checks .c:last-child{border:0}
 .checks .c i{width:10px;height:10px;border-radius:50%;display:inline-block}
@@ -209,7 +212,7 @@ textarea.list{width:100%;border:1px solid var(--line-2);border-radius:var(--r-ct
 .rail.daily .nav-group[data-g="daily"]{display:block}
 .rail-foot button{margin-top:6px}
 .simtag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:9px;background:var(--warn-tint);color:var(--warn);vertical-align:middle;margin-left:8px;font-weight:400}
-.demo-banner{background:var(--signal-tint);border:1px solid #C7D3F2;border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--ink-2);margin:0 0 12px}
+.demo-banner{background:var(--signal-tint);border:1px solid #B8C6D7;border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--ink-2);margin:0 0 12px}
 .demo-banner b{color:var(--ink);font-weight:500}
 .status-list .al .t{font-weight:500}
 @media (max-width:860px){
@@ -258,7 +261,7 @@ textarea.list{width:100%;border:1px solid var(--line-2);border-radius:var(--r-ct
 .led .lock{font-size:11px;color:var(--ink-3)}
 .hbar{display:grid;grid-template-columns:140px 1fr 80px;gap:10px;align-items:center;font-size:12.5px;padding:5px 0}
 .hbar .b{height:10px;background:var(--paper);border-radius:5px;position:relative}
-.hbar .b i{position:absolute;left:0;top:0;height:100%;border-radius:5px;background:#C7D3F2}
+.hbar .b i{position:absolute;left:0;top:0;height:100%;border-radius:5px;background:#B8C6D7}
 .hbar .b i.g{background:var(--gain)} .hbar .b i.s{background:var(--signal)} .hbar .b i.r{background:var(--loss)}
 .hbar .r{text-align:right}
 .auto{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:start;padding:12px 0;border-bottom:1px solid var(--line)}
@@ -309,13 +312,13 @@ textarea.list{width:100%;border:1px solid var(--line-2);border-radius:var(--r-ct
 .vh p{color:var(--ink-2);margin-top:3px;max-width:64ch}
 .vh .acts{display:flex;gap:8px;flex:none}
 .btn{border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:var(--r-ctl);padding:7px 12px;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.btn:hover{background:#1B3358;border-color:#1B3358}
+.btn:hover{background:#0F141B;border-color:#0F141B}
 .btn.secondary{background:var(--surface);color:var(--ink);border-color:var(--line-2)}
 .btn.secondary:hover{border-color:var(--ink-3);background:var(--surface)}
 .btn.danger{background:var(--surface);color:var(--loss);border-color:var(--line-2)}
 .btn.sm{padding:4px 9px;font-size:12px}
 .btn.signal{background:var(--signal);border-color:var(--signal)}
-.btn.signal:hover{background:#1F48E0;border-color:#1F48E0}
+.btn.signal:hover{background:#163A68;border-color:#163A68}
 
 .grid{display:grid;gap:14px}
 .g-12{grid-template-columns:repeat(12,1fr)}
@@ -347,7 +350,7 @@ th.sortable.on{color:var(--ink)}
 td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
 tr:last-child td{border-bottom:0}
 tbody tr.row{cursor:pointer}
-tbody tr.row:hover{background:#FAFBFD}
+tbody tr.row:hover{background:var(--surface-2)}
 .tick{font-family:var(--mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
 .thumb{width:34px;height:34px;border-radius:6px;background:var(--paper);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-3);overflow:hidden;flex:none;object-fit:cover}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -438,9 +441,9 @@ input[type=range].bear{accent-color:var(--bear)} input[type=range].base{accent-c
 svg.chart{width:100%;height:auto;display:block}
 .chart text{font-family:var(--sans);font-size:11px;fill:var(--ink-3)}
 .chart .axis{stroke:var(--line);stroke-width:1}
-.chart .bar{fill:#C7D3F2}
+.chart .bar{fill:#B8C6D7}
 .chart .bar.cur{fill:var(--signal)}
-.chart .bar.hist{fill:#C7D3F2}
+.chart .bar.hist{fill:#B8C6D7}
 .chart .target{stroke:var(--ink);stroke-dasharray:3 4;stroke-width:1}
 .chart .line{fill:none;stroke:var(--signal);stroke-width:1.6}
 .chart .area{fill:url(#ga)}
@@ -621,6 +624,28 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
 #dl_run{white-space:nowrap}
 .btn{white-space:nowrap}
 .vh h1{white-space:nowrap}
+/* v6.4 aesthetics: warmth, depth and weight on the desk */
+.rail{background:linear-gradient(180deg,#F1F1ED 0%,var(--paper-2) 100%);border-right:1px solid var(--line-2)}
+.brand{padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.brand .mark{background:linear-gradient(145deg,#39424F,var(--ink));box-shadow:0 1px 2px rgba(20,25,32,.28)}
+.ws{box-shadow:0 1px 2px rgba(28,34,43,.05)}
+.nav{position:relative}
+.nav.active{background:var(--surface);box-shadow:0 1px 2px rgba(28,34,43,.08),inset 0 0 0 1px var(--line-2)}
+.nav.active::before{content:"";position:absolute;left:-12px;top:7px;bottom:7px;width:2px;background:var(--brass);border-radius:0 2px 2px 0}
+.rail-foot{border-top:1px solid var(--line-2)}
+.topbar{box-shadow:0 1px 0 rgba(28,34,43,.05)}
+.tape .lbl i{background:var(--brass);box-shadow:0 0 0 3px rgba(157,122,58,.18)}
+.panel,.kpis{box-shadow:0 1px 1px rgba(28,34,43,.04),0 3px 8px -4px rgba(28,34,43,.10)}
+thead th{background:var(--surface-2)}
+.preview{background:var(--surface);border-color:var(--line);box-shadow:0 1px 1px rgba(28,34,43,.04),0 3px 8px -4px rgba(28,34,43,.10)}
+.drop{background:var(--surface)}
+.btn{box-shadow:0 1px 1px rgba(20,25,32,.14)}
+.btn.secondary,.btn-ghost{box-shadow:0 1px 1px rgba(28,34,43,.05)}
+.vh h1{font-size:23px;font-weight:600;letter-spacing:-.02em}
+.kpi .v{letter-spacing:-.025em}
+#v-add .c4{position:sticky;top:0;align-self:start}
+.f .unit{font-size:11.5px;color:var(--ink-3);margin-left:4px}
+@media (prefers-reduced-motion:reduce){.tape .track{animation:none}}
 </style>
 </head>
 <body>
@@ -689,7 +714,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
       <div class="kpis eight" id="kpis"></div>
       <div class="grid g-12 mt12">
         <div class="panel c8" id="capPanel">
-          <div class="ph"><h2>Capital deployed by position</h2><div style="display:flex;gap:12px;align-items:center"><div class="legend" id="capLegend"><span><i style="background:#F3B9B9"></i>Below cost at bear</span><span><i style="background:#D8E0F0"></i>Thin</span><span><i style="background:#9FD8C4"></i>Strong expected ROI</span></div><div class="seg" id="capView"><button class="on" data-cv="treemap">Map</button><button data-cv="ladder">Ladder</button></div></div></div>
+          <div class="ph"><h2>Capital deployed by position</h2><div style="display:flex;gap:12px;align-items:center"><div class="legend" id="capLegend"><span><i style="background:#E7B0A8"></i>Below cost at bear</span><span><i style="background:#DEDDD6"></i>Thin</span><span><i style="background:#A6CBB7"></i>Strong expected ROI</span></div><div class="seg" id="capView"><button class="on" data-cv="treemap">Map</button><button data-cv="ladder">Ladder</button></div></div></div>
           <div id="treemap"></div>
           <div id="ladder" style="display:none;margin:0 -18px -16px"></div>
           <p class="small mt8" id="capNote">Tile area is landed cost, colour is probability-weighted ROI, the small figure is the market's last sale against your base. Click a tile to open the position.</p>
@@ -723,8 +748,8 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
         <div class="c4" style="display:flex;flex-direction:column;gap:14px"><div class="panel">
           <div class="form">
             <div class="f" style="grid-column:span 12"><label>Product</label><input id="dl_q" list="catList" placeholder="Air Jordan 4 Military Black" autocomplete="off"><datalist id="catList"></datalist><span class="hint">Style code works too: DH6927-111</span></div>
-            <div class="f" style="grid-column:span 6"><label>Size (UK)</label><input id="dl_size" value="9"></div>
-            <div class="f" style="grid-column:span 6"><label>Condition</label><select id="dl_cond"><option>New, boxed</option><option>New, no box</option><option>VNDS</option><option>Used</option></select></div>
+            <div class="f" style="grid-column:span 6"><label>Size</label><input id="dl_size" value="9" list="dl_sizeList" autocomplete="off"><datalist id="dl_sizeList"></datalist></div>
+            <div class="f" style="grid-column:span 6"><label>Condition</label><select id="dl_cond"></select></div>
             <div class="f" style="grid-column:span 6"><label>You can buy it for</label><div class="money"><input id="dl_cost" type="number" placeholder="210"></div></div>
             <div class="f" style="grid-column:span 6"><label>You think it sells at</label><div class="money"><input id="dl_target" type="number" placeholder="300"></div></div>
             <div class="f" style="grid-column:span 12"><label>Sources</label><div class="srcs" id="dl_srcs"><label><input type="checkbox" checked data-src="stockx"> StockX</label><label><input type="checkbox" checked data-src="goat"> GOAT</label><label><input type="checkbox" checked data-src="grailed"> Grailed</label><label><input type="checkbox" checked data-src="ebay"> eBay</label></div></div>
@@ -754,7 +779,7 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
           <div class="ph"><div><h2 id="mk_title"></h2><div class="small" id="mk_meta"></div></div><div class="chips" id="mk_ranges"></div></div>
           <div class="row-between" style="flex-wrap:wrap;gap:10px;margin-bottom:8px"><div class="stat-row" id="mk_stats"></div><div class="custom-range"><label>From <input type="date" id="mk_from"></label><label>To <input type="date" id="mk_to"></label><button class="btn sm secondary" id="mk_apply">Apply</button></div></div>
           <div id="mk_chart"></div>
-          <div class="legend mt8"><span><i style="background:var(--signal)"></i>Last sale, StockX</span><span><i style="background:#8FA3C8"></i>GOAT</span><span><i style="background:var(--ink);opacity:.5"></i>30-day average</span></div>
+          <div class="legend mt8"><span><i style="background:var(--signal)"></i>Last sale, StockX</span><span><i style="background:#93A3B8"></i>GOAT</span><span><i style="background:var(--ink);opacity:.5"></i>30-day average</span></div>
         </div>
         <div class="c4" style="display:flex;flex-direction:column;gap:14px">
           <div class="panel tight"><div class="ph"><h2>Change by horizon</h2><span class="sub">Last sale then vs now</span></div><table id="mk_horizons"></table></div>
@@ -821,8 +846,8 @@ input:-webkit-autofill,input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 100
             <div class="f" style="grid-column:span 8"><label>Item</label><input id="a_name" placeholder="Air Jordan 4 Retro 'Military Black'" autocomplete="off"></div>
             <div class="f" style="grid-column:span 4"><label>Brand</label><input id="a_brand" placeholder="Jordan" list="brandList"><datalist id="brandList"><option>Jordan<option>Nike<option>Yeezy<option>Dior<option>Louis Vuitton<option>Balenciaga<option>Rick Owens<option>Amiri<option>New Balance<option>Gallery Dept<option>Rhude<option>Chrome Hearts</datalist></div>
             <div class="f" style="grid-column:span 3"><label>Category</label><select id="a_cat"><option value="footwear">Footwear</option><option value="apparel">Apparel</option><option value="accessory">Accessory</option></select></div>
-            <div class="f" style="grid-column:span 3"><label>Size (UK)</label><input id="a_size" placeholder="9"></div>
-            <div class="f" style="grid-column:span 3"><label>Condition</label><select id="a_cond"><option>New, boxed</option><option>New, no box</option><option>VNDS</option><option>Used</option></select></div>
+            <div class="f" style="grid-column:span 3"><label id="a_sizeLbl">Size (UK)</label><input id="a_size" placeholder="9" list="a_sizeList" autocomplete="off"><datalist id="a_sizeList"></datalist></div>
+            <div class="f" style="grid-column:span 3"><label>Condition</label><select id="a_cond"></select></div>
             <div class="f" style="grid-column:span 3"><label>Quantity</label><input id="a_qty" type="number" min="1" value="1"></div>
             <div class="f" style="grid-column:span 3"><label>Paid per unit <select id="a_ccy" style="border:0;background:none;font-size:12px;color:var(--ink-3);padding:0;margin-left:4px"><option>GBP</option><option>EUR</option><option>USD</option></select></label><div class="money" id="a_costwrap"><input id="a_cost" type="number" step="1" placeholder="210"></div><span class="hint" id="a_fx"></span></div>
             <div class="f" style="grid-column:span 3"><label>Inbound shipping and duties</label><div class="money"><input id="a_inb" type="number" step="1" value="0"></div></div>
@@ -1334,7 +1359,7 @@ function renderKpis(){
 function lerp(a,b,t){ return a+(b-a)*t; }
 function hex(c){ return [1,3,5].map(i=>parseInt(c.slice(i,i+2),16)); }
 function mix(c1,c2,t){ const a=hex(c1), b=hex(c2); return '#'+a.map((v,i)=>Math.round(lerp(v,b[i],t)).toString(16).padStart(2,'0')).join(''); }
-function roiColor(r){ if(r<0) return mix('#D8E0F0','#F3B9B9',clamp(-r/0.15,0,1)); return mix('#D8E0F0','#9FD8C4',clamp(r/0.30,0,1)); }
+function roiColor(r){ if(r<0) return mix('#E4E3DB','#E7B0A8',clamp(-r/0.15,0,1)); return mix('#E4E3DB','#A6CBB7',clamp(r/0.30,0,1)); }
 
 function squarify(data, W, H){
   const total = data.reduce((a,d)=>a+d.v,0); if(!total) return [];
@@ -1383,7 +1408,7 @@ function renderAgeChart(){
   const o = open();
   const data = buckets.map(([l,a,b])=>{ const ps=o.filter(p=>{const d=days(p.bought);return d>=a&&d<=b;}); return { l, n:ps.length, cap:ps.reduce((s,p)=>s+landed(p)*p.qty,0) }; });
   const W=360,H=150,pl=8,pb=24,pt=16; const max=Math.max(1,...data.map(d=>d.cap)); const bw=(W-pl*2)/data.length; const y=v=>pt+(H-pt-pb)*(1-v/max);
-  $('#ageChart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}">${data.map((d,i)=>`<rect class="bar ${i>=3?'cur':'hist'}" style="${i>=3?'fill:var(--loss)':i===2?'fill:#E7B86A':''}" x="${pl+i*bw+bw*0.18}" y="${y(d.cap)}" width="${bw*0.64}" height="${Math.max(0,y(0)-y(d.cap))}" rx="3"/><text x="${pl+i*bw+bw/2}" y="${H-7}" text-anchor="middle">${d.l} d</text>${d.cap?`<text x="${pl+i*bw+bw/2}" y="${y(d.cap)-4}" text-anchor="middle" style="fill:var(--ink-2)">${gbp(d.cap)}</text>`:''}`).join('')}</svg>`;
+  $('#ageChart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}">${data.map((d,i)=>`<rect class="bar ${i>=3?'cur':'hist'}" style="${i>=3?'fill:var(--loss)':i===2?'fill:#C9A24A':''}" x="${pl+i*bw+bw*0.18}" y="${y(d.cap)}" width="${bw*0.64}" height="${Math.max(0,y(0)-y(d.cap))}" rx="3"/><text x="${pl+i*bw+bw/2}" y="${H-7}" text-anchor="middle">${d.l} d</text>${d.cap?`<text x="${pl+i*bw+bw/2}" y="${y(d.cap)-4}" text-anchor="middle" style="fill:var(--ink-2)">${gbp(d.cap)}</text>`:''}`).join('')}</svg>`;
   const old = data.slice(3).reduce((a,d)=>a+d.cap,0), tot=data.reduce((a,d)=>a+d.cap,0);
   const avg = o.length ? o.reduce((a,p)=>a+days(p.bought),0)/o.length : 0;
   $('#ageNote').innerHTML = `<b>${Math.round(old/tot*100)}% of capital</b> (${gbp(old)}) has been sitting over 60 days. Average hold is ${Math.round(avg)} days. Profit per day held only falls the longer a pair sits; the pairs in red have already cost you their edge.`;
@@ -1412,6 +1437,57 @@ function renderPositions(){
   $('#posSummary').textContent = `${rows.length} shown, ${gbp(L)} landed, ${gbp(E)} ${isSold?'realised':'expected'}`;
 }
 
+/* --- Categories: sizes and conditions, per category (v6.4) --- */
+const CATS = {
+  footwear:{
+    label:'Footwear', sizeLabel:'Size (UK)', sizeHint:'9',
+    sizes:['3','3.5','4','4.5','5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10.5','11','11.5','12','12.5','13','14'],
+    conds:[['New, boxed',1],['New, no box',0.94],['VNDS',0.88],['Used',0.72]]
+  },
+  apparel:{
+    label:'Apparel', sizeLabel:'Size', sizeHint:'M, or W32',
+    sizes:['XXS','XS','S','M','L','XL','XXL','XXXL','W28','W29','W30','W31','W32','W33','W34','W36','W38','W40','W30 L32','W32 L32','W34 L32','W36 L32','IT 46','IT 48','IT 50','IT 52','One size'],
+    conds:[['New with tags',1],['New without tags',0.93],['Worn once or twice',0.82],['Used, good',0.68],['Used, flawed',0.5]]
+  },
+  accessory:{
+    label:'Accessory', sizeLabel:'Size', sizeHint:'One size',
+    sizes:['One size','XS','S','M','L','XL','38','40','42','44','46','85cm','90cm','95cm','100cm'],
+    conds:[['New, full set',1],['New, no packaging',0.93],['Excellent',0.84],['Good',0.7],['Fair',0.52]]
+  }
+};
+const COND_FACTORS = Object.fromEntries(Object.values(CATS).flatMap(c=>c.conds));
+function condFactor(c){ const f=COND_FACTORS[c]; return typeof f==='number'?f:1; }
+function isNewCond(c){ return condFactor(c)>=0.99; }
+function catOfCond(c){ return Object.keys(CATS).find(k=>CATS[k].conds.some(p=>p[0]===c)) || 'footwear'; }
+function condTier(cond,i){ const set=CATS[catOfCond(cond)].conds.map(p=>p[0]); return set[Math.min(i,set.length-1)]; }
+function condLadder(cond){
+  const set=CATS[catOfCond(cond)].conds.map(p=>p[0]); const i=Math.max(0,set.indexOf(cond));
+  return [set[i],set[i],set[Math.min(i+1,set.length-1)],set[Math.max(0,i-1)],set[Math.min(i+2,set.length-1)]];
+}
+function allCondOptions(sel){
+  return Object.entries(CATS).map(([k,c])=>`<optgroup label="${c.label}">`+c.conds.map(p=>`<option${p[0]===sel?' selected':''}>${p[0]}</option>`).join('')+`</optgroup>`).join('');
+}
+function allSizeOptions(){
+  const seen=new Set(); const out=[];
+  Object.values(CATS).forEach(c=>c.sizes.forEach(s=>{ if(!seen.has(s)){ seen.add(s); out.push(`<option value="${s}">`); } }));
+  return out.join('');
+}
+/* Repoints the size and condition controls at the chosen category. Keeps the
+   typed size; keeps the condition only if it belongs to the new category. */
+function applyCategory(cat, keep){
+  const c = CATS[cat] || CATS.footwear; keep = keep || {};
+  const lbl = $('#a_sizeLbl'); if(lbl) lbl.textContent = c.sizeLabel;
+  const sz = $('#a_size'); if(sz) sz.placeholder = c.sizeHint;
+  const dl = $('#a_sizeList'); if(dl) dl.innerHTML = c.sizes.map(s=>`<option value="${s}">`).join('');
+  const sel = $('#a_cond');
+  if(sel){
+    const want = keep.cond && catOfCond(keep.cond)===cat ? keep.cond : (CATS[cat]===c && sel.value && catOfCond(sel.value)===cat ? sel.value : c.conds[0][0]);
+    sel.innerHTML = c.conds.map(p=>`<option${p[0]===want?' selected':''}>${p[0]}</option>`).join('');
+    sel.value = want;
+  }
+  if(keep.size!=null && sz) sz.value = keep.size;
+}
+
 /* --- Add form --- */
 let addImg = null;
 function fillChannelSelects(){ $('#a_chan').innerHTML = Object.entries(state.fees).map(([k,f])=>`<option value="${k}">${f.label}</option>`).join(''); $('#a_client').innerHTML = `<option value="">Nobody yet</option>` + state.clients.map(c=>`<option value="${c.id}">${c.name}, ${c.shoe}</option>`).join(''); }
@@ -1430,6 +1506,8 @@ function renderAddPreview(){
     <tr><td>Expected value</td><td class="r"><b>${gbp(e)}</b> <span class="small">${pct(e/L)}</span></td></tr>
     <tr><td>After tax at ${pctPlain(tx.marginal,1)} marginal</td><td class="r"><b>${gbp(afterTax(e))}</b></td></tr>
     <tr><td>Break-even sale price</td><td class="r">${gbp(breakEven(p))}</td></tr>
+    <tr><td>Cash after this buy</td><td class="r ${cashNow()-L<0?'dn':''}">${gbp(cashNow()-L)}</td></tr>
+    <tr><td>Share of the book</td><td class="r">${pct(L/Math.max(1,open().reduce((a,q)=>a+landed(q)*q.qty,0)+L),0)}</td></tr>
   </table>${s.bear.profit<0?`<div class="note mt8" style="border-color:var(--loss);color:var(--loss)">Bear is under cost. Only buy this if a client is already committed.</div>`:''}`;
 }
 function breakEven(p){ const f=state.fees[p.channel]||state.fees.direct; return (landed(p)+state.shipOut+f.fixed)/(1-f.pct/100); }
@@ -1446,7 +1524,7 @@ function renderScenarios(){
   const row=(k,lbl,net)=>{ const pr=net-b.deployed; return `<tr><td><span class="dot ${k}"></span>${lbl}</td><td class="r">${gbp(net)}</td><td class="r ${pr>=0?'up':'dn'}">${gbp(pr)}</td><td class="r">${pct(pr/b.deployed)}</td><td class="r">${gbp(pr*(1-tx.marginal))}</td><td class="r">${k==='ev'?'100%':pctPlain(n[k])}</td></tr>`; };
   $('#scenTable').innerHTML = `<table><thead><tr><th>Scenario</th><th class="r">Net proceeds</th><th class="r">Profit</th><th class="r">ROI</th><th class="r">After tax</th><th class="r">Weight</th></tr></thead><tbody>${row('bear',state.ui.scn.bear,b.floor)}${row('base',state.ui.scn.base,b.mark)}${row('bull',state.ui.scn.bull,b.ceil)}<tr style="font-weight:500"><td>Expected value</td><td class="r">${gbp(b.deployed+b.ev)}</td><td class="r up">${gbp(b.ev)}</td><td class="r">${pct(b.evRoi)}</td><td class="r">${gbp(afterTax(b.ev))}</td><td class="r"></td></tr></tbody></table>
   <div class="note mt12">Spread between floor and ceiling is <b>${gbp(b.ceil-b.floor)}</b>. That is the value of selling well — to the right client, at the right moment — rather than dumping. Most of it sits in ${topSpread()}.</div>`;
-  $('#scenPos').innerHTML = `<thead><tr><th>Position</th><th class="r">Landed</th><th style="width:34%">Bear to bull, against landed cost</th><th class="r">Bear</th><th class="r">Base</th><th class="r">Bull</th><th class="r">Expected</th></tr></thead><tbody>${open().map(p=>{ const s=scen(p); const L=landed(p); const lo=Math.min(L,s.bear.net)*0.97, hi=s.bull.net*1.02; const x=v=>((v-lo)/(hi-lo)*100).toFixed(1); return `<tr class="row" data-id="${p.id}"><td><div class="item">${thumb(p,28)}<div><div class="nm">${p.name}</div><div class="meta tick">${p.ticker}</div></div></div></td><td class="r">${gbp(L)}${p.qty>1?` <span class="small">×${p.qty}</span>`:''}</td><td><svg viewBox="0 0 100 14" style="width:100%;height:14px;display:block"><line x1="${x(s.bear.net)}" x2="${x(s.bull.net)}" y1="7" y2="7" stroke="#D3DBE6" stroke-width="2"/><line x1="${x(L)}" x2="${x(L)}" y1="1" y2="13" stroke="#10233F" stroke-width="1.2"/><circle cx="${x(s.bear.net)}" cy="7" r="3" fill="#7A8AA3"/><circle cx="${x(s.base.net)}" cy="7" r="3" fill="#2E5BFF"/><circle cx="${x(s.bull.net)}" cy="7" r="3" fill="#0FA37F"/></svg></td><td class="r ${s.bear.profit<0?'dn':''}">${gbp(s.bear.profit)}</td><td class="r">${gbp(s.base.profit)}</td><td class="r">${gbp(s.bull.profit)}</td><td class="r"><b>${gbp(ev(p))}</b></td></tr>`; }).join('')}</tbody>`;
+  $('#scenPos').innerHTML = `<thead><tr><th>Position</th><th class="r">Landed</th><th style="width:34%">Bear to bull, against landed cost</th><th class="r">Bear</th><th class="r">Base</th><th class="r">Bull</th><th class="r">Expected</th></tr></thead><tbody>${open().map(p=>{ const s=scen(p); const L=landed(p); const lo=Math.min(L,s.bear.net)*0.97, hi=s.bull.net*1.02; const x=v=>((v-lo)/(hi-lo)*100).toFixed(1); return `<tr class="row" data-id="${p.id}"><td><div class="item">${thumb(p,28)}<div><div class="nm">${p.name}</div><div class="meta tick">${p.ticker}</div></div></div></td><td class="r">${gbp(L)}${p.qty>1?` <span class="small">×${p.qty}</span>`:''}</td><td><svg viewBox="0 0 100 14" style="width:100%;height:14px;display:block"><line x1="${x(s.bear.net)}" x2="${x(s.bull.net)}" y1="7" y2="7" stroke="#CCCBC2" stroke-width="2"/><line x1="${x(L)}" x2="${x(L)}" y1="1" y2="13" stroke="#1B2028" stroke-width="1.2"/><circle cx="${x(s.bear.net)}" cy="7" r="3" fill="#8A8F97"/><circle cx="${x(s.base.net)}" cy="7" r="3" fill="#1F4B85"/><circle cx="${x(s.bull.net)}" cy="7" r="3" fill="#127A5E"/></svg></td><td class="r ${s.bear.profit<0?'dn':''}">${gbp(s.bear.profit)}</td><td class="r">${gbp(s.base.profit)}</td><td class="r">${gbp(s.bull.profit)}</td><td class="r"><b>${gbp(ev(p))}</b></td></tr>`; }).join('')}</tbody>`;
   $$('#scenPos tr.row').forEach(r=>r.addEventListener('click',()=>openPos(r.dataset.id)));
 }
 function topSpread(){ const o=open().map(p=>({p, sp:(scen(p).bull.net-scen(p).bear.net)*p.qty})).sort((a,b)=>b.sp-a.sp).slice(0,2); return o.map(x=>`${x.p.ticker} (${gbp(x.sp)})`).join(' and '); }
@@ -1460,7 +1538,7 @@ function renderTax(){
   const lo = tx.lower, hi = tx.upper, scale = hi*1.25; const xp = v=>clamp(v/scale*100,0,100);
   $('#band').innerHTML = isLtd
     ? `<div class="seg-b a" style="left:0;width:${xp(lo)}%"></div><div class="seg-b b" style="left:${xp(lo)}%;width:${xp(hi)-xp(lo)}%"></div><div class="seg-b c" style="left:${xp(hi)}%;width:${100-xp(hi)}%"></div><div class="lab" style="left:${xp(lo)/2}%">19%</div><div class="lab" style="left:${(xp(lo)+xp(hi))/2}%">marginal relief, 26.5% on each extra £</div><div class="lab" style="left:${(xp(hi)+100)/2}%">25%</div><div class="lab lim" style="left:${xp(lo)}%">${gbp(lo)}</div><div class="lab lim" style="left:${xp(hi)}%">${gbp(hi)}</div><div class="you" style="left:${xp(tx.profit)}%">you, ${gbp(tx.profit)}</div>`
-    : `<div class="seg-b a" style="left:0;width:${xp(IT.pa)}%"></div><div class="seg-b" style="left:${xp(IT.pa)}%;width:${xp(IT.basic)-xp(IT.pa)}%;background:#E6F6F0"></div><div class="seg-b b" style="left:${xp(IT.basic)}%;width:${xp(IT.higher)-xp(IT.basic)}%"></div><div class="seg-b c" style="left:${xp(IT.higher)}%;width:${100-xp(IT.higher)}%"></div><div class="lab" style="left:${xp(IT.pa)/2}%">0%</div><div class="lab" style="left:${(xp(IT.pa)+xp(IT.basic))/2}%">20% + 6% NI</div><div class="lab" style="left:${(xp(IT.basic)+xp(IT.higher))/2}%">40% + 2% NI</div><div class="lab" style="left:${(xp(IT.higher)+100)/2}%">45%</div><div class="lab lim" style="left:${xp(IT.pa)}%">${gbp(IT.pa)}</div><div class="lab lim" style="left:${xp(IT.basic)}%">${gbp(IT.basic)}</div><div class="lab lim" style="left:${xp(IT.higher)}%">${gbp(IT.higher)}</div><div class="you" style="left:${xp(tx.profit)}%">you, ${gbp(tx.profit)}</div>`;
+    : `<div class="seg-b a" style="left:0;width:${xp(IT.pa)}%"></div><div class="seg-b" style="left:${xp(IT.pa)}%;width:${xp(IT.basic)-xp(IT.pa)}%;background:#E6F1EC"></div><div class="seg-b b" style="left:${xp(IT.basic)}%;width:${xp(IT.higher)-xp(IT.basic)}%"></div><div class="seg-b c" style="left:${xp(IT.higher)}%;width:${100-xp(IT.higher)}%"></div><div class="lab" style="left:${xp(IT.pa)/2}%">0%</div><div class="lab" style="left:${(xp(IT.pa)+xp(IT.basic))/2}%">20% + 6% NI</div><div class="lab" style="left:${(xp(IT.basic)+xp(IT.higher))/2}%">40% + 2% NI</div><div class="lab" style="left:${(xp(IT.higher)+100)/2}%">45%</div><div class="lab lim" style="left:${xp(IT.pa)}%">${gbp(IT.pa)}</div><div class="lab lim" style="left:${xp(IT.basic)}%">${gbp(IT.basic)}</div><div class="lab lim" style="left:${xp(IT.higher)}%">${gbp(IT.higher)}</div><div class="you" style="left:${xp(tx.profit)}%">you, ${gbp(tx.profit)}</div>`;
   $('#taxStats').innerHTML = `<div class="stat"><div class="l">Projected profit</div><div class="v">${gbp(tx.profit)}</div></div><div class="stat"><div class="l">Tax on it</div><div class="v">${gbp(tx.tax)}</div></div><div class="stat"><div class="l">Effective rate</div><div class="v">${pctPlain(tx.eff,1)}</div></div><div class="stat"><div class="l">Marginal rate</div><div class="v">${pctPlain(tx.marginal,1)}<small>on the next sale</small></div></div><div class="stat"><div class="l">Keep after tax</div><div class="v">${gbp(tx.profit-tx.tax)}</div></div>`;
   $('#projSlider').max = isLtd ? Math.round(hi*1.25) : 150000; $('#projSlider').value = tx.profit; $('#projV').textContent = gbp(tx.profit) + (state.tax.override==null?' (projection)':' (what-if)');
   const room = lo - tx.profit;
@@ -1579,7 +1657,7 @@ function renderAll(){ document.getElementById('tapeWrap').style.display = state.
 /* ============================================================
    v2: state extensions
    ============================================================ */
-state.ui = { tape:false, accent:'#2E5BFF', scn:{ bear:'Bear', base:'Base', bull:'Bull' }, customFields:[ { k:'source', label:'Sourced from' } ],
+state.ui = { tape:false, accent:'#1F4B85', scn:{ bear:'Bear', base:'Base', bull:'Bull' }, customFields:[ { k:'source', label:'Sourced from' } ],
   cols:{ ticker:true, landed:true, scen:true, baseProfit:true, roi:true, held:true, perDay:true, expected:true, market:true, status:true, 'cf:source':false } };
 state.rules = { stale:{ on:true, days:45 }, conc:{ on:true, pct:35 }, quiet:{ on:true, days:60, ltv:1000 }, reserve:{ on:true, gbp:150 }, vat:{ on:true, pct:75 }, floor:{ on:true }, market:{ on:true, pct:8 }, watch:{ on:true } };
 state.watch = [ { id:'w1', mk:'aj4-bred', size:'9', target:200 }, { id:'w2', mk:'asics-jjjjound', size:'9', target:180 }, { id:'w3', mk:'salomon-xt6', size:'10', target:95 }, { id:'w4', mk:'chrome-cap', size:'—', target:380 } ];
@@ -1671,21 +1749,20 @@ function marketRow(mk, size){ if(!mk||!catById(mk)) return null; const ls=lastSa
    ============================================================ */
 function comps(c, size, cond){
   const rnd = mulberry32(hash(c.id+'|'+size)); const ls = lastSale(c.id,size);
-  const condAdj = { 'New, boxed':1, 'New, no box':0.94, 'VNDS':0.88, 'Used':0.72 }[cond]||1;
-  const L = ls*condAdj;
+  const L = ls*condFactor(cond);
   const r = (a,b)=>a+(b-a)*rnd();
   const daysAgo = n=>{ const d=new Date(TODAY-Math.floor(r(0,n))*86400000); return d.toISOString().slice(0,10); };
-  const conds = ['New, boxed','New, boxed','VNDS','New, no box','Used'];
+  const conds = condLadder(cond);
   const stockx = { last:Math.round(L), ask:Math.round(L*r(1.03,1.06)), bid:Math.round(L*r(0.91,0.95)), sales30:Math.round(c.wk*4*r(0.7,1.3)), recent:Array.from({length:6},()=>({ price:Math.round(L*r(0.92,1.08)), date:daysAgo(14), size })) };
   const goat = { last:Math.round(L*r(1.01,1.05)), ask:Math.round(L*r(1.05,1.10)), sales30:Math.round(c.wk*4*r(0.3,0.6)) };
   const grLive = Array.from({length:6},(_,i)=>({ title:c.name+(i%2?' UK '+size:' size '+size), price:Math.round(L*r(0.98,1.28)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(12,400)), score:+r(4.3,5).toFixed(1), loc:['UK','UK','UK','DE','FR','US'][i], days:Math.round(r(1,40)) }));
-  grLive.push({ title:c.name+' UA quality read desc', price:Math.round(L*0.34), cond:'New, no box', fb:3, score:4.0, loc:'CN', days:2 });
+  grLive.push({ title:c.name+' UA quality read desc', price:Math.round(L*0.34), cond:condTier(cond,1), fb:3, score:4.0, loc:'CN', days:2 });
   const grSold = Array.from({length:8},()=>({ title:c.name, price:Math.round(L*r(0.82,1.16)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(20,600)), date:daysAgo(60), loc:'UK' }));
   const ebLive = Array.from({length:7},(_,i)=>({ title:c.name+' UK'+size+(i===3?' BNIB':''), price:Math.round(L*r(1.0,1.3)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(8,2500)), loc:['UK','UK','UK','UK','IT','US','UK'][i], type:i%3?'Buy it now':'Auction' }));
-  ebLive.push({ title:c.name.split(' ').slice(0,3).join(' ')+' custom 1:1 unbranded', price:Math.round(L*0.11), cond:'New, no box', fb:2, loc:'CN', type:'Buy it now' });
-  ebLive.push({ title:c.name+' size '+size+' fast ship', price:Math.round(L*0.16), cond:'New, boxed', fb:0, loc:'UK', type:'Buy it now' });
+  ebLive.push({ title:c.name.split(' ').slice(0,3).join(' ')+' custom 1:1 unbranded', price:Math.round(L*0.11), cond:condTier(cond,1), fb:2, loc:'CN', type:'Buy it now' });
+  ebLive.push({ title:c.name+' size '+size+' fast ship', price:Math.round(L*0.16), cond:condTier(cond,0), fb:0, loc:'UK', type:'Buy it now' });
   const ebSold = Array.from({length:9},()=>({ title:c.name, price:Math.round(L*r(0.78,1.12)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(15,900)), date:daysAgo(60), loc:'UK' }));
-  ebSold.push({ title:c.name+' rep', price:Math.round(L*0.12), cond:'New, no box', fb:5, date:daysAgo(20), loc:'CN' });
+  ebSold.push({ title:c.name+' rep', price:Math.round(L*0.12), cond:condTier(cond,1), fb:5, date:daysAgo(20), loc:'CN' });
   return { L, stockx, goat, grLive, grSold, ebLive, ebSold };
 }
 const FAKE_RE = /\b(UA|replica|rep|1:1|custom|unbranded|read desc)\b/i;
@@ -1770,7 +1847,7 @@ function renderDealResult(c, d){
     </div>
     ${d.srcs.grailed?compTable(v.gs,false,'Grailed, sold in the last 60 days',links.grailed,links.grailedSold)+compTable(v.grLive,true,'Grailed, live now',links.grailed):''}
     ${d.srcs.ebay?compTable(v.es,false,'eBay UK, sold in the last 60 days',links.ebay,links.ebaySold)+compTable(v.ebLive,true,'eBay UK, live now',links.ebay):''}`;
-  $('#dl_create').addEventListener('click',()=>{ $('#a_name').value=c.name; $('#a_brand').value=c.brand; $('#a_size').value=d.size; $('#a_cond').value=d.cond; $('#a_cost').value=d.cost||''; $('#a_bear').value=v.p25; $('#a_base').value=v.p50; $('#a_bull').value=v.p80; go('add'); renderAddPreview(); toast('Prefilled from Deal Lab'); });
+  $('#dl_create').addEventListener('click',()=>{ $('#a_name').value=c.name; $('#a_brand').value=c.brand; $('#a_cat').value=catOfCond(d.cond); applyCategory(catOfCond(d.cond),{cond:d.cond,size:d.size}); $('#a_cost').value=d.cost||''; $('#a_bear').value=v.p25; $('#a_base').value=v.p50; $('#a_bull').value=v.p80; go('add'); renderAddPreview(); toast('Prefilled from Deal Lab'); });
   $('#dl_watch').addEventListener('click',()=>{ state.watch.push({ id:'w'+uid(), mk:c.id, size:d.size, target:v.p25 }); renderAll(); toast(`Watching ${c.name} at ${gbp(v.p25)}`); });
   $('#dl_chart').addEventListener('click',()=>{ mkSel=c.id; go('market'); renderMarket(); });
 }
@@ -1801,14 +1878,14 @@ function renderMarket(){
   const ticks=[ymin,(ymin+ymax)/2,ymax].map(v=>Math.round(v/10)*10);
   const lab=d=>d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year: (to-from)>400*86400000?'2-digit':undefined});
   const xl=[0,Math.floor((pts.length-1)/3),Math.floor((pts.length-1)*2/3),pts.length-1];
-  $('#mk_chart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ga" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2E5BFF" stop-opacity=".14"/><stop offset="1" stop-color="#2E5BFF" stop-opacity="0"/></linearGradient></defs>
+  $('#mk_chart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="ga" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1F4B85" stop-opacity=".14"/><stop offset="1" stop-color="#1F4B85" stop-opacity="0"/></linearGradient></defs>
     ${ticks.map(t=>`<line class="axis" x1="${pl}" x2="${W-pr}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${pl-6}" y="${Y(t)+4}" text-anchor="end">${gbp(t)}</text>`).join('')}
     <path class="area" d="${path(pts.map(x=>x.p))} L${X(pts.length-1).toFixed(1)},${Y(ymin)} L${X(0)},${Y(ymin)} Z"/>
-    <path d="${path(goat)}" fill="none" stroke="#8FA3C8" stroke-width="1.2"/>
-    <path d="${path(ma)}" fill="none" stroke="#10233F" stroke-opacity=".5" stroke-width="1" stroke-dasharray="3 3"/>
+    <path d="${path(goat)}" fill="none" stroke="#93A3B8" stroke-width="1.2"/>
+    <path d="${path(ma)}" fill="none" stroke="#1B2028" stroke-opacity=".5" stroke-width="1" stroke-dasharray="3 3"/>
     <path class="line" d="${path(pts.map(x=>x.p))}"/>
     ${xl.map(i=>pts[i]?`<text x="${X(i)}" y="${H-8}" text-anchor="${i===0?'start':i===pts.length-1?'end':'middle'}">${lab(pts[i].d)}</text>`:'').join('')}
-    <circle cx="${X(pts.length-1)}" cy="${Y(last)}" r="3.5" fill="#2E5BFF"/></svg>`;
+    <circle cx="${X(pts.length-1)}" cy="${Y(last)}" r="3.5" fill="#1F4B85"/></svg>`;
   // horizons
   $('#mk_horizons').innerHTML = `<tbody>${HORIZONS.map(([l,dd])=>{ const v=change(c.id,dd); const then=priceAt(c.id,new Date(TODAY-dd*86400000)); return `<tr class="hz"><td>${l}</td><td class="r small">${then==null?'not released':gbp(then)}</td><td class="r ${v==null?'mute':v>=0?'up':'dn'}"><b>${v==null?'—':pct(v,1)}</b></td></tr>`; }).join('')}${mkCustom?`<tr class="hz"><td>Custom</td><td class="r small">${gbp(first)}</td><td class="r ${ch>=0?'up':'dn'}"><b>${pct(ch,1)}</b></td></tr>`:''}</tbody>`;
   // verdict
@@ -1881,7 +1958,7 @@ function renderCustomise(){
     <div class="hr"></div><h3 class="small mb8">Your own fields on every position</h3><div class="fieldlist">${u.customFields.map(f=>`<span class="tag">${f.label}<button data-rmf="${f.k}" aria-label="Remove">&times;</button></span>`).join('')}</div><div class="row-between mt8"><input class="search" id="cf_new" placeholder="e.g. Receipt number, Box grade, Legit checked by"><button class="btn sm secondary" id="cf_add">Add field</button></div>
     <div class="hr"></div><h3 class="small mb8">What you call the scenarios</h3><div class="form"><div class="f" style="grid-column:span 4"><label><span class="dot bear"></span>Bear</label><input data-scn="bear" value="${u.scn.bear}"></div><div class="f" style="grid-column:span 4"><label><span class="dot base"></span>Base</label><input data-scn="base" value="${u.scn.base}"></div><div class="f" style="grid-column:span 4"><label><span class="dot bull"></span>Bull</label><input data-scn="bull" value="${u.scn.bull}"></div></div>
     <div class="hr"></div><div class="row-between"><div><b style="font-weight:500">Live tape across the top</b><div class="small">Off by default. Worth it above fifty orders a day.</div></div><button class="switch ${u.tape?'on':''}" id="ui_tape" aria-label="Toggle tape"></button></div>
-    <div class="row-between mt12"><div><b style="font-weight:500">Accent colour</b><div class="small">Buttons, links, base-case marks.</div></div><div class="sw">${['#2E5BFF','#10233F','#0FA37F','#7C3AED','#C2410C'].map(c=>`<i style="background:${c}" data-acc="${c}" class="${u.accent===c?'on':''}"></i>`).join('')}</div></div>`;
+    <div class="row-between mt12"><div><b style="font-weight:500">Accent colour</b><div class="small">Buttons, links, base-case marks.</div></div><div class="sw">${['#1F4B85','#1B2028','#127A5E','#9D7A3A','#7A2E35'].map(c=>`<i style="background:${c}" data-acc="${c}" class="${u.accent===c?'on':''}"></i>`).join('')}</div></div>`;
   $$('#custBox [data-col]').forEach(i=>i.addEventListener('change',()=>{ u.cols[i.dataset.col]=i.checked; renderPositions(); }));
   $('#cf_add').addEventListener('click',()=>{ const l=$('#cf_new').value.trim(); if(!l) return; const k=l.toLowerCase().replace(/[^a-z0-9]+/g,'_'); if(u.customFields.some(f=>f.k===k)) return; u.customFields.push({k,label:l}); u.cols['cf:'+k]=true; renderAll(); toast(`"${l}" added to every position`); });
   $$('#custBox [data-rmf]').forEach(b=>b.addEventListener('click',()=>{ u.customFields=u.customFields.filter(f=>f.k!==b.dataset.rmf); delete u.cols['cf:'+b.dataset.rmf]; renderAll(); }));
@@ -2076,7 +2153,7 @@ function renderDealResult(c, d){
     </div>
     ${d.srcs.grailed?compTable(v.gs,false,'Grailed, sold in the last 60 days',links.grailed,links.grailedSold)+compTable(v.grLive,true,'Grailed, live now',links.grailed):''}
     ${d.srcs.ebay?compTable(v.es,false,'eBay UK, sold in the last 60 days',links.ebay,links.ebaySold)+compTable(v.ebLive,true,'eBay UK, live now',links.ebay):''}`;
-  $('#dl_create').addEventListener('click',()=>{ $('#a_name').value=c.name; $('#a_brand').value=c.brand; $('#a_size').value=d.size; $('#a_cond').value=d.cond; $('#a_cost').value=d.cost||''; $('#a_bear').value=v.p25; $('#a_base').value=d.target; $('#a_bull').value=v.p80; go('add'); renderAddPreview(); toast('Prefilled from Deal Lab'); });
+  $('#dl_create').addEventListener('click',()=>{ $('#a_name').value=c.name; $('#a_brand').value=c.brand; $('#a_cat').value=catOfCond(d.cond); applyCategory(catOfCond(d.cond),{cond:d.cond,size:d.size}); $('#a_cost').value=d.cost||''; $('#a_bear').value=v.p25; $('#a_base').value=d.target; $('#a_bull').value=v.p80; go('add'); renderAddPreview(); toast('Prefilled from Deal Lab'); });
   $('#dl_watch').addEventListener('click',()=>{ state.watch.push({ id:'w'+uid(), mk:c.id, size:d.size, target:v.p25 }); renderAll(); toast(`Watching ${c.name} at ${gbp(v.p25)}`); });
   $('#dl_chart').addEventListener('click',()=>{ mkSel=c.id; go('market'); renderMarket(); });
   $$('#dl_out [data-cx]').forEach(b=>b.addEventListener('click',()=>{ compToggle(c,d,b.dataset.cx,b.dataset.mode); renderDealResult(c,d); }));
@@ -2098,9 +2175,9 @@ function compSet(c, size){
   rows.push({ src:'StockX', type:'Lowest ask', match:'Exact size', cond:'New', price:k.stockx.ask, age:'now', q:84 });
   rows.push({ src:'StockX', type:'Highest bid', match:'Exact size', cond:'New', price:k.stockx.bid, age:'now', q:80 });
   rows.push({ src:'GOAT', type:'Sold', match:'Exact size', cond:'New', price:k.goat.last, age:'recent', q:88 });
-  fakeFilter(k.grSold,true).forEach(x=>rows.push({ src:'Grailed', type:'Sold', match:'Model + size', cond:x.cond, price:x.price, age:x.date, q:x.fake?18:(x.cond==='New, boxed'?78:62) }));
-  fakeFilter(k.grLive,true).slice(0,4).forEach(x=>rows.push({ src:'Grailed', type:'Live ask', match:'Model + size', cond:x.cond, price:x.price, age:x.days+'d live', q:x.fake?15:(x.cond==='New, boxed'?66:52) }));
-  fakeFilter(k.ebSold,true).forEach(x=>rows.push({ src:'eBay UK', type:'Sold', match:'Model + size', cond:x.cond, price:x.price, age:x.date, q:x.fake?12:(x.cond==='New, boxed'?76:60) }));
+  fakeFilter(k.grSold,true).forEach(x=>rows.push({ src:'Grailed', type:'Sold', match:'Model + size', cond:x.cond, price:x.price, age:x.date, q:x.fake?18:(isNewCond(x.cond)?78:62) }));
+  fakeFilter(k.grLive,true).slice(0,4).forEach(x=>rows.push({ src:'Grailed', type:'Live ask', match:'Model + size', cond:x.cond, price:x.price, age:x.days+'d live', q:x.fake?15:(isNewCond(x.cond)?66:52) }));
+  fakeFilter(k.ebSold,true).forEach(x=>rows.push({ src:'eBay UK', type:'Sold', match:'Model + size', cond:x.cond, price:x.price, age:x.date, q:x.fake?12:(isNewCond(x.cond)?76:60) }));
   fakeFilter(k.ebLive,true).slice(0,4).forEach(x=>rows.push({ src:'eBay UK', type:'Live ask', match:'Model + size', cond:x.cond, price:x.price, age:x.type, q:x.fake?10:64 }));
   sold().filter(p=>p.mk===c.id).forEach(p=>rows.push({ src:'Umi', type:'Own sale', match:ex(p.size)?'Exact size':'Same model', cond:p.cond, price:p.sold.price, age:p.sold.date, q:ex(p.size)?97:90 }));
   state.requests.filter(r=>r.stage<=3 && matchCatalog(r.item)?.id===c.id).forEach(r=>rows.push({ src:'Client', type:'Demand', match:'Request', cond:'—', price:r.quote||r.budget, age:r.created, q:74 }));
@@ -2376,7 +2453,7 @@ function renderDataRoom(){
   $$('#drInputs [data-dr]').forEach(i=>i.addEventListener('change',()=>{ d[i.dataset.dr]=+i.value||0; renderDataRoom(); }));
   const M=drModel(); const W=640,H=220,pl=56,pr=10,pt=14,pb=26; const max=Math.max(...M.rows.map(r=>r.total*12))*1.08; const X=i=>pl+(W-pl-pr)*i/35, Y=v=>pt+(H-pt-pb)*(1-v/max);
   const path=(f)=>M.rows.map((r,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(f(r)).toFixed(1)}`).join(' ');
-  $('#drChart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="gb" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2E5BFF" stop-opacity=".14"/><stop offset="1" stop-color="#2E5BFF" stop-opacity="0"/></linearGradient></defs>${[0,max/3,max*2/3].map(t=>`<line class="axis" x1="${pl}" x2="${W-pr}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${pl-6}" y="${Y(t)+4}" text-anchor="end">${gbp(Math.round(t/1000))}k</text>`).join('')}<path d="${path(r=>r.total*12)} L${X(35)},${Y(0)} L${X(0)},${Y(0)} Z" fill="url(#gb)"/><path d="${path(r=>r.mrr*12)}" fill="none" stroke="#8FA3C8" stroke-width="1.2" stroke-dasharray="3 3"/><path class="line" d="${path(r=>r.total*12)}"/>${[0,11,23,35].map(i=>`<text x="${X(i)}" y="${H-8}" text-anchor="${i===0?'start':i===35?'end':'middle'}">M${i+1}</text>`).join('')}</svg><div class="legend mt8"><span><i style="background:var(--signal)"></i>ARR incl. network fees</span><span><i style="background:#8FA3C8"></i>Subscriptions only</span></div>`;
+  $('#drChart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="gb" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1F4B85" stop-opacity=".14"/><stop offset="1" stop-color="#1F4B85" stop-opacity="0"/></linearGradient></defs>${[0,max/3,max*2/3].map(t=>`<line class="axis" x1="${pl}" x2="${W-pr}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${pl-6}" y="${Y(t)+4}" text-anchor="end">${gbp(Math.round(t/1000))}k</text>`).join('')}<path d="${path(r=>r.total*12)} L${X(35)},${Y(0)} L${X(0)},${Y(0)} Z" fill="url(#gb)"/><path d="${path(r=>r.mrr*12)}" fill="none" stroke="#93A3B8" stroke-width="1.2" stroke-dasharray="3 3"/><path class="line" d="${path(r=>r.total*12)}"/>${[0,11,23,35].map(i=>`<text x="${X(i)}" y="${H-8}" text-anchor="${i===0?'start':i===35?'end':'middle'}">M${i+1}</text>`).join('')}</svg><div class="legend mt8"><span><i style="background:var(--signal)"></i>ARR incl. network fees</span><span><i style="background:#93A3B8"></i>Subscriptions only</span></div>`;
   $('#drOut').innerHTML = `<div class="metrics" style="grid-template-columns:1fr 1fr"><div class="metric"><div class="l">ARR, month 12</div><div class="v">${gbp(M.arr12)}</div></div><div class="metric"><div class="l">ARR, month 24</div><div class="v">${gbp(M.arr24)}</div></div><div class="metric"><div class="l">ARR, month 36</div><div class="v">${gbp(M.arr)}</div></div><div class="metric"><div class="l">Members, month 36</div><div class="v">${M.members.toLocaleString('en-GB')}</div></div><div class="metric"><div class="l">Blended ARPU</div><div class="v">${gbp(M.arpu)}</div></div><div class="metric"><div class="l">LTV / CAC</div><div class="v ${M.ltvcac>=3?'up':'dn'}">${M.ltvcac.toFixed(1)}\u00d7</div></div><div class="metric"><div class="l">CAC payback</div><div class="v">${M.payback.toFixed(1)} mo</div></div><div class="metric"><div class="l">Network fees, run-rate</div><div class="v">${gbp(M.matchesArr)}</div></div></div><p class="small mt8">Network fees assume 60% of members make one £300 match a month by month 36, at 5%. That line is the reason the raise is £5m and not £1m.</p>`;
   const uof=[['Product and engineering',2250,'8 engineers, 2 designers, 24 months'],['Data and connectors',750,'KicksDB enterprise, snapshots, scrapers, authentication partner'],['Go-to-market',1250,'Community, creators, agency partnerships, two sales hires'],['Operations, legal, compliance',450,'Escrow licensing, VAT/tax counsel, trust and safety'],['Reserve',300,'Six months of buffer at the month-24 burn']];
   $('#drUof').innerHTML = uof.map(u=>`<div class="uof"><span>${u[0]}<div class="small">${u[2]}</div></span><div class="b"><i style="width:${u[1]/2250*100}%"></i></div><span class="r">${Math.round(u[1]/50)}%</span><span class="r">\u00a3${(u[1]/1000).toFixed(2)}m</span></div>`).join('')+`<p class="small mt8">Runway is sized to reach the month-24 metrics with a reserve, so the Series A is raised on numbers, not on need.</p>`;
@@ -2509,23 +2586,23 @@ function seedLedger(){
 /* --- Deal Lab: dispersion by liquidity and condition --- */
 function comps(c, size, cond){
   const rnd = mulberry32(hash(c.id+'|'+size+'|'+cond)); const ls = lastSale(c.id,size);
-  const condAdj = { 'New, boxed':1, 'New, no box':0.94, 'VNDS':0.86, 'Used':0.70 }[cond]||1;
-  const L = ls*condAdj; const disp = clamp(0.05 + 14/Math.max(c.wk,4), 0.06, 0.28) * (cond==='Used'?1.5:cond==='VNDS'?1.25:1);
+  const cf = condFactor(cond);
+  const L = ls*cf; const disp = clamp(0.05 + 14/Math.max(c.wk,4), 0.06, 0.28) * (1 + (1-cf)*1.7);
   const r = (a,b)=>a+(b-a)*rnd();
   const daysAgo = n=>{ const d=new Date(TODAY-Math.floor(r(0,n))*86400000); return d.toISOString().slice(0,10); };
-  const conds = cond==='Used'?['Used','Used','VNDS']:cond==='VNDS'?['VNDS','VNDS','New, no box','Used']:['New, boxed','New, boxed','VNDS','New, no box'];
+  const conds = condLadder(cond);
   const nRecent = clamp(Math.round(c.wk/25),2,6);
   const stockx = { last:Math.round(L), ask:Math.round(L*r(1.03,1.04+disp/2)), bid:Math.round(L*r(0.88-disp/3,0.95)), sales30:Math.round(c.wk*4*r(0.7,1.3)), recent:Array.from({length:nRecent},()=>({ price:Math.round(L*r(1-disp*0.8,1+disp*0.8)), date:daysAgo(14+Math.round(120/Math.max(c.wk,4))), size })) };
   const goat = { last:Math.round(L*r(1.0,1.06)), ask:Math.round(L*r(1.04,1.12)), sales30:Math.round(c.wk*4*r(0.3,0.6)) };
   const grLive = Array.from({length:5},(_,i)=>({ title:c.name+(i%2?' UK '+size:' size '+size), price:Math.round(L*r(0.98,1.18+disp)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(12,400)), score:+r(4.3,5).toFixed(1), loc:['UK','UK','DE','FR','US'][i], days:Math.round(r(1,60)) }));
-  grLive.push({ title:c.name+' UA quality read desc', price:Math.round(L*0.34), cond:'New, no box', fb:3, score:4.0, loc:'CN', days:2 });
+  grLive.push({ title:c.name+' UA quality read desc', price:Math.round(L*0.34), cond:condTier(cond,1), fb:3, score:4.0, loc:'CN', days:2 });
   const nSold = clamp(Math.round(c.wk/30)+3,3,8);
   const grSold = Array.from({length:nSold},()=>({ title:c.name, price:Math.round(L*r(1-disp,1+disp)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(20,600)), date:daysAgo(60+Math.round(300/Math.max(c.wk,4))), loc:'UK' }));
   const ebLive = Array.from({length:6},(_,i)=>({ title:c.name+' UK'+size+(i===3?' BNIB':''), price:Math.round(L*r(1.0,1.22+disp)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(8,2500)), loc:['UK','UK','UK','IT','US','UK'][i], type:i%3?'Buy it now':'Auction' }));
-  ebLive.push({ title:c.name.split(' ').slice(0,3).join(' ')+' custom 1:1 unbranded', price:Math.round(L*0.11), cond:'New, no box', fb:2, loc:'CN', type:'Buy it now' });
-  ebLive.push({ title:c.name+' size '+size+' fast ship', price:Math.round(L*0.16), cond:'New, boxed', fb:0, loc:'UK', type:'Buy it now' });
+  ebLive.push({ title:c.name.split(' ').slice(0,3).join(' ')+' custom 1:1 unbranded', price:Math.round(L*0.11), cond:condTier(cond,1), fb:2, loc:'CN', type:'Buy it now' });
+  ebLive.push({ title:c.name+' size '+size+' fast ship', price:Math.round(L*0.16), cond:condTier(cond,0), fb:0, loc:'UK', type:'Buy it now' });
   const ebSold = Array.from({length:nSold+1},()=>({ title:c.name, price:Math.round(L*r(1-disp*1.1,1+disp*0.9)), cond:conds[Math.floor(r(0,conds.length))], fb:Math.round(r(15,900)), date:daysAgo(60+Math.round(300/Math.max(c.wk,4))), loc:'UK' }));
-  ebSold.push({ title:c.name+' rep', price:Math.round(L*0.12), cond:'New, no box', fb:5, date:daysAgo(20), loc:'CN' });
+  ebSold.push({ title:c.name+' rep', price:Math.round(L*0.12), cond:condTier(cond,1), fb:5, date:daysAgo(20), loc:'CN' });
   return { L, stockx, goat, grLive, grSold, ebLive, ebSold };
 }
 
@@ -2540,7 +2617,7 @@ function renderDataRoom(){
   $$('#drInputs [data-raise]').forEach(b=>b.addEventListener('click',()=>{ d.raise=+b.dataset.raise; const t=DR_TRACKS[d.raise]; d.nSolo=t.nSolo; d.nPro=t.nPro; d.nAgency=t.nAgency; renderDataRoom(); persist(); }));
   const M=drModel(); const W=640,H=220,pl=56,pr=10,pt=14,pb=26; const max=Math.max(...M.rows.map(r=>r.total*12))*1.08; const X=i=>pl+(W-pl-pr)*i/35, Y=v=>pt+(H-pt-pb)*(1-v/max);
   const path=(f)=>M.rows.map((r,i)=>`${i?'L':'M'}${X(i).toFixed(1)},${Y(f(r)).toFixed(1)}`).join(' ');
-  $('#drChart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="gb" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2E5BFF" stop-opacity=".14"/><stop offset="1" stop-color="#2E5BFF" stop-opacity="0"/></linearGradient></defs>${[0,max/3,max*2/3].map(t=>`<line class="axis" x1="${pl}" x2="${W-pr}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${pl-6}" y="${Y(t)+4}" text-anchor="end">\u00a3${(t/1e6).toFixed(1)}m</text>`).join('')}<path d="${path(r=>r.total*12)} L${X(35)},${Y(0)} L${X(0)},${Y(0)} Z" fill="url(#gb)"/><path d="${path(r=>r.mrr*12)}" fill="none" stroke="#8FA3C8" stroke-width="1.2" stroke-dasharray="3 3"/><path class="line" d="${path(r=>r.total*12)}"/>${[0,11,23,35].map(i=>`<text x="${X(i)}" y="${H-8}" text-anchor="${i===0?'start':i===35?'end':'middle'}">M${i+1}</text>`).join('')}</svg><div class="legend mt8"><span><i style="background:var(--signal)"></i>ARR incl. network fees</span><span><i style="background:#8FA3C8"></i>Subscriptions only</span></div>
+  $('#drChart').innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${H}"><defs><linearGradient id="gb" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1F4B85" stop-opacity=".14"/><stop offset="1" stop-color="#1F4B85" stop-opacity="0"/></linearGradient></defs>${[0,max/3,max*2/3].map(t=>`<line class="axis" x1="${pl}" x2="${W-pr}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${pl-6}" y="${Y(t)+4}" text-anchor="end">\u00a3${(t/1e6).toFixed(1)}m</text>`).join('')}<path d="${path(r=>r.total*12)} L${X(35)},${Y(0)} L${X(0)},${Y(0)} Z" fill="url(#gb)"/><path d="${path(r=>r.mrr*12)}" fill="none" stroke="#93A3B8" stroke-width="1.2" stroke-dasharray="3 3"/><path class="line" d="${path(r=>r.total*12)}"/>${[0,11,23,35].map(i=>`<text x="${X(i)}" y="${H-8}" text-anchor="${i===0?'start':i===35?'end':'middle'}">M${i+1}</text>`).join('')}</svg><div class="legend mt8"><span><i style="background:var(--signal)"></i>ARR incl. network fees</span><span><i style="background:#93A3B8"></i>Subscriptions only</span></div>
   <div class="note mt12"><b>The growth story, in order.</b> Agencies first: each signs for up to eight players, so one sale is eight size books and eight streams of requests. Those requests are the network\u2019s first liquidity. Pro members follow the agencies because that is where the demand is, and Solo is the funnel from Instagram. Network fees assume 60% of members clear one \u00a3300 match a month by month 36, at 5%.</div>`;
   $('#drOut').innerHTML = `<div class="metrics" style="grid-template-columns:1fr 1fr"><div class="metric"><div class="l">ARR, month 12</div><div class="v">${gbp(M.arr12)}</div></div><div class="metric"><div class="l">ARR, month 24</div><div class="v">${gbp(M.arr24)}</div></div><div class="metric"><div class="l">ARR, month 36</div><div class="v">${gbp(M.arr)}</div></div><div class="metric"><div class="l">Members, month 36</div><div class="v">${M.members.toLocaleString('en-GB')}</div></div><div class="metric"><div class="l">Blended ARPU</div><div class="v">${gbp(M.arpu)}</div></div><div class="metric"><div class="l">LTV / CAC</div><div class="v ${M.ltvcac>=3?'up':'dn'}">${M.ltvcac.toFixed(1)}\u00d7</div></div><div class="metric"><div class="l">CAC payback</div><div class="v">${M.payback.toFixed(1)} mo</div></div><div class="metric"><div class="l">Network fees, run-rate</div><div class="v">${gbp(M.matchesArr)}</div></div></div><p class="small mt8">${d.raise===5?'A \u00a35m raise is only defensible if the network line is real by month 12; the milestones below are gated on it.':'A \u00a32m raise is a subscriptions business with the network as upside. Smaller team, later network, Series A on retention.'}</p>`;
   const total=tr.uof.reduce((a,u)=>a+u[1],0);
@@ -2560,7 +2637,7 @@ function renderDataRoom(){
 /* ============================================================
    v6 — client desk, payments on invoices, connections
    ============================================================ */
-const V6 = 'v6.3';
+const V6 = 'v6.4';
 SAVE_KEYS.push('contact','integ','v6demo');
 const CLIENT_TYPES = { player:'Player', agent:'Agent', parent:'Parent or family', buyer:'Buyer' };
 const TOUCH_TYPES = { dm:'Message', call:'Call', meet:'Met', delivered:'Delivered', note:'Note' };
@@ -2598,6 +2675,7 @@ function normInvoice(i){
 function ensureV6(){
   state.contact = Object.assign({ whatsapp:'', ig:(state.ig&&state.ig.handle)||'', signoff:'', payNote:'' }, state.contact||{});
   state.integ = state.integ||{};
+  if(state.ui.accent==='#2E5BFF') state.ui.accent='#1F4B85';
   if(!state.ui.product||state.ui.product==='Sizerun') state.ui.product='Sizemill';
   state.tax.otherIncome = Math.max(0,+state.tax.otherIncome||0);
   state.rules.cadence = state.rules.cadence||{ on:true, days:45 };
@@ -2985,7 +3063,7 @@ function renderTax(){
   const total=other+tx.profit;
   $('#band').innerHTML = isLtd
     ? `<div class="seg-b a" style="left:0;width:${xp(lo)}%"></div><div class="seg-b b" style="left:${xp(lo)}%;width:${xp(hi)-xp(lo)}%"></div><div class="seg-b c" style="left:${xp(hi)}%;width:${100-xp(hi)}%"></div><div class="lab" style="left:${xp(lo)/2}%">19%</div><div class="lab" style="left:${(xp(lo)+xp(hi))/2}%">marginal relief, 26.5% on each extra £</div><div class="lab" style="left:${(xp(hi)+100)/2}%">25%</div><div class="lab lim" style="left:${xp(lo)}%">${gbp(lo)}</div><div class="lab lim" style="left:${xp(hi)}%">${gbp(hi)}</div><div class="you" style="left:${xp(tx.profit)}%">you, ${gbp(tx.profit)}</div>`
-    : `<div class="seg-b a" style="left:0;width:${xp(IT.pa)}%"></div><div class="seg-b" style="left:${xp(IT.pa)}%;width:${xp(IT.basic)-xp(IT.pa)}%;background:#E6F6F0"></div><div class="seg-b b" style="left:${xp(IT.basic)}%;width:${xp(IT.higher)-xp(IT.basic)}%"></div><div class="seg-b c" style="left:${xp(IT.higher)}%;width:${100-xp(IT.higher)}%"></div>${other?`<div class="seg-b other" style="left:0;width:${xp(other)}%"></div><div class="seg-b umi" style="left:${xp(other)}%;width:${Math.max(0.6,xp(total)-xp(other))}%"></div>`:''}<div class="lab" style="left:${xp(IT.pa)/2}%">0%</div><div class="lab" style="left:${(xp(IT.pa)+xp(IT.basic))/2}%">20% + 6% NI</div><div class="lab" style="left:${(xp(IT.basic)+xp(IT.higher))/2}%">40% + 2% NI</div><div class="lab" style="left:${(xp(IT.higher)+100)/2}%">45%</div><div class="lab lim" style="left:${xp(IT.pa)}%">${gbp(IT.pa)}</div><div class="lab lim" style="left:${xp(IT.basic)}%">${gbp(IT.basic)}</div><div class="lab lim" style="left:${xp(IT.higher)}%">${gbp(IT.higher)}</div><div class="you" style="left:${xp(total)}%">${other?`Umi ${gbp(tx.profit)} on top of ${gbp(other)}`:`you, ${gbp(tx.profit)}`}</div>`;
+    : `<div class="seg-b a" style="left:0;width:${xp(IT.pa)}%"></div><div class="seg-b" style="left:${xp(IT.pa)}%;width:${xp(IT.basic)-xp(IT.pa)}%;background:#E6F1EC"></div><div class="seg-b b" style="left:${xp(IT.basic)}%;width:${xp(IT.higher)-xp(IT.basic)}%"></div><div class="seg-b c" style="left:${xp(IT.higher)}%;width:${100-xp(IT.higher)}%"></div>${other?`<div class="seg-b other" style="left:0;width:${xp(other)}%"></div><div class="seg-b umi" style="left:${xp(other)}%;width:${Math.max(0.6,xp(total)-xp(other))}%"></div>`:''}<div class="lab" style="left:${xp(IT.pa)/2}%">0%</div><div class="lab" style="left:${(xp(IT.pa)+xp(IT.basic))/2}%">20% + 6% NI</div><div class="lab" style="left:${(xp(IT.basic)+xp(IT.higher))/2}%">40% + 2% NI</div><div class="lab" style="left:${(xp(IT.higher)+100)/2}%">45%</div><div class="lab lim" style="left:${xp(IT.pa)}%">${gbp(IT.pa)}</div><div class="lab lim" style="left:${xp(IT.basic)}%">${gbp(IT.basic)}</div><div class="lab lim" style="left:${xp(IT.higher)}%">${gbp(IT.higher)}</div><div class="you" style="left:${xp(total)}%">${other?`Umi ${gbp(tx.profit)} on top of ${gbp(other)}`:`you, ${gbp(tx.profit)}`}</div>`;
   $('#taxStats').innerHTML = `<div class="stat"><div class="l">Projected profit</div><div class="v">${gbp(tx.profit)}</div></div><div class="stat"><div class="l">Tax on it</div><div class="v">${gbp(tx.tax)}</div></div><div class="stat"><div class="l">Effective rate</div><div class="v">${pctPlain(tx.eff,1)}</div></div><div class="stat"><div class="l">Marginal rate</div><div class="v">${pctPlain(tx.marginal,1)}<small>on the next sale</small></div></div><div class="stat"><div class="l">Keep after tax</div><div class="v">${gbp(tx.profit-tx.tax)}</div></div>`;
   $('#projSlider').max = isLtd ? Math.round(hi*1.25) : 150000; $('#projSlider').value = tx.profit; $('#projV').textContent = gbp(tx.profit) + (state.tax.override==null?' (projection)':' (what-if)');
   const room = lo - tx.profit;
@@ -3145,6 +3223,59 @@ function openDrawer(title, body, foot){ $('#dTitle').innerHTML=title; $('#dBody'
 function closeDrawer(){ $('#drawer').classList.remove('open'); $('#overlay').classList.remove('open'); }
 $('#dClose').addEventListener('click',closeDrawer); $('#overlay').addEventListener('click',closeDrawer);
 
+/* --- Instagram story card: 1080x1920 PNG from a position (v6.4) ---
+   Your photo, the item, the size and the price you quote. Never the cost,
+   never the margin: this leaves the desk and goes to a customer. */
+function storyWrap(x, text, max, lines){
+  const words=String(text).split(/\s+/); const out=[]; let line='';
+  words.forEach(w=>{ const t=line?line+' '+w:w; if(x.measureText(t).width>max && line){ out.push(line); line=w; } else line=t; });
+  if(line) out.push(line);
+  return out.slice(0,lines);
+}
+function storyCanvas(p){
+  return new Promise(resolve=>{
+    const W=1080,H=1920, cv=document.createElement('canvas'); cv.width=W; cv.height=H; const x=cv.getContext('2d');
+    const draw = img=>{
+      x.fillStyle='#13171D'; x.fillRect(0,0,W,H);
+      const bx=60,by=300,bw=960,bh=960;
+      if(img){
+        const s=Math.max(bw/img.width,bh/img.height), iw=img.width*s, ih=img.height*s;
+        x.save(); x.beginPath(); x.rect(bx,by,bw,bh); x.clip();
+        x.drawImage(img,bx+(bw-iw)/2,by+(bh-ih)/2,iw,ih); x.restore();
+      } else {
+        x.fillStyle='#1B2028'; x.fillRect(bx,by,bw,bh);
+        x.fillStyle='#4A525E'; x.font='500 54px "IBM Plex Mono",monospace'; x.textAlign='center';
+        x.fillText(p.ticker,W/2,by+bh/2+18); x.textAlign='left';
+      }
+      x.strokeStyle='rgba(255,255,255,.10)'; x.lineWidth=2; x.strokeRect(bx,by,bw,bh);
+      x.fillStyle='#9AA3AE'; x.font='500 34px "IBM Plex Sans",system-ui,sans-serif';
+      x.fillText(state.workspace||'Umi Sneakers',60,170);
+      x.fillStyle='#FFFFFF'; x.font='600 68px "IBM Plex Sans",system-ui,sans-serif';
+      let y=1400; storyWrap(x,p.name||'Untitled',960,2).forEach(l=>{ x.fillText(l,60,y); y+=82; });
+      x.fillStyle='#9AA3AE'; x.font='400 38px "IBM Plex Sans",system-ui,sans-serif';
+      x.fillText(`${CATS[p.cat]?CATS[p.cat].sizeLabel:'Size'} ${p.size}, ${String(p.cond||'').toLowerCase()}`,60,y+8);
+      x.fillStyle='#C9A24A'; x.font='600 104px "IBM Plex Sans",system-ui,sans-serif';
+      x.fillText(gbp(p.bull||p.base||0),60,y+140);
+      x.strokeStyle='rgba(201,162,74,.5)'; x.lineWidth=2;
+      x.beginPath(); x.moveTo(60,y+190); x.lineTo(1020,y+190); x.stroke();
+      x.fillStyle='#FFFFFF'; x.font='500 40px "IBM Plex Sans",system-ui,sans-serif';
+      x.fillText('DM to reserve',60,y+258);
+      resolve(cv);
+    };
+    const src = state.imgs[p.id];
+    if(!src) return draw(null);
+    const im = new Image(); im.onload=()=>draw(im); im.onerror=()=>draw(null); im.src=src;
+  });
+}
+async function exportStory(p){
+  try{
+    if(document.fonts && document.fonts.ready) await document.fonts.ready;
+    const cv = await storyCanvas(p);
+    const a=document.createElement('a'); a.download=`${p.ticker}-story.png`; a.href=cv.toDataURL('image/png'); a.click();
+    toast('Story card saved to your downloads');
+  }catch(e){ toast('Could not build the story card'); }
+}
+
 function openPos(id){
   const p = state.positions.find(x=>x.id===id); if(!p) return;
   const s = scen(p), d = days(p.bought), tx=currentTax(), L=landed(p)*p.qty;
@@ -3170,7 +3301,8 @@ function openPos(id){
       ${state.ui.customFields.map(f=>`<div class="f" style="grid-column:span 6"><label>${f.label}</label><input data-dcf="${f.k}" value="${((p.custom||{})[f.k]||'').replace(/"/g,'&quot;')}"></div>`).join('')}
     </div></div>
     ${p.sold?'':`<div class="dsec"><h3>Mark sold</h3><div class="form"><div class="f" style="grid-column:span 4"><label>Price per unit</label><div class="money"><input id="d_sprice" type="number" value="${p.client?p.bull:p.base}"></div></div><div class="f" style="grid-column:span 4"><label>Channel</label><select id="d_schan">${chanOpts}</select></div><div class="f" style="grid-column:span 4"><label>Date</label><input id="d_sdate" type="date" value="2026-09-06"></div><div class="f" style="grid-column:span 12"><span class="hint" id="d_shint"></span></div></div></div>`}`;
-  openDrawer(`<span class="tick">${p.ticker}</span> &nbsp;${p.name}`, body, `<button class="btn danger" id="d_del">Delete</button><span style="flex:1"></span>${p.sold?'':'<button class="btn secondary" id="d_sold">Mark sold</button>'}<button class="btn" id="d_save">Save changes</button>`);
+  openDrawer(`<span class="tick">${p.ticker}</span> &nbsp;${p.name}`, body, `<button class="btn danger" id="d_del">Delete</button><span style="flex:1"></span>${p.sold?'':'<button class="btn secondary" id="d_sold">Mark sold</button>'}<button class="btn secondary" id="d_story">Story card</button><button class="btn" id="d_save">Save changes</button>`);
+  const _story=$('#d_story'); if(_story) _story.addEventListener('click',()=>exportStory(p));
   const upd=()=>{ if(!p.sold){ const pr=+$('#d_sprice').value||0, ch=$('#d_schan').value; const prof=(netProceeds(pr,ch)-landed(p))*p.qty; $('#d_shint').innerHTML=`Nets <b>${gbp(prof)}</b> (${pct(prof/L)}), <b>${gbp(afterTax(prof))}</b> after ${pctPlain(tx.marginal,1)} tax.`; } };
   upd(); ['#d_sprice','#d_schan'].forEach(sel=>{ const el=$(sel); if(el) el.addEventListener('input',upd); });
   const save=()=>{ const oldL=landed(p)*p.qty; p.name=$('#d_name').value; p.cost=+$('#d_cost').value||0; p.inbound=+$('#d_inb').value||0; p.qty=Math.max(1,+$('#d_qty').value||1); p.bear=+$('#d_bear').value||0; p.base=+$('#d_base').value||0; p.bull=+$('#d_bull').value||0; p.channel=$('#d_chan').value; p.client=$('#d_client').value; p.notes=$('#d_notes').value; p.custom=p.custom||{}; $$('#dBody [data-dcf]').forEach(i=>p.custom[i.dataset.dcf]=i.value.trim()); if(p.status!=='sold') p.status = p.client?'reserved':'stock'; const newL=landed(p)*p.qty; if(Math.abs(newL-oldL)>0.5) ledgerAdd({ type:'adjustment', ref:p.id, desc:`Cost of ${p.ticker} corrected ${gbp(oldL)} \u2192 ${gbp(newL)}`, cash:oldL-newL, seq:ledSeq++ }); };
@@ -3226,7 +3358,7 @@ function savePosition(){
   renderAll(); toast(`${p.ticker} added. Expected ${gbp(ev(p))}`); go('positions');
 }
 $('#a_save').addEventListener('click',savePosition);
-$('#a_dup').addEventListener('click',()=>{ const l=state.positions.find(x=>x.id===state.lastAddedId)||state.positions[0]; $('#a_name').value=l.name; $('#a_brand').value=l.brand; $('#a_cat').value=l.cat; $('#a_size').value=l.size; $('#a_cost').value=l.cost; $('#a_bear').value=l.bear; $('#a_base').value=l.base; $('#a_bull').value=l.bull; $('#a_chan').value=l.channel; renderAddPreview(); toast('Filled from '+l.ticker); });
+$('#a_dup').addEventListener('click',()=>{ const l=state.positions.find(x=>x.id===state.lastAddedId)||state.positions[0]; $('#a_name').value=l.name; $('#a_brand').value=l.brand; $('#a_cat').value=l.cat; applyCategory(l.cat,{cond:l.cond,size:l.size}); $('#a_cost').value=l.cost; $('#a_bear').value=l.bear; $('#a_base').value=l.base; $('#a_bull').value=l.bull; $('#a_chan').value=l.channel; renderAddPreview(); toast('Filled from '+l.ticker); });
 
 /* scenario sliders */
 ['bear','base','bull'].forEach(k=>{ const el=$('#w'+k[0].toUpperCase()+k.slice(1)); el.addEventListener('input',()=>{ state.weights[k]=+el.value; renderScenarios(); }); el.addEventListener('change',()=>renderAll()); });
@@ -3270,6 +3402,10 @@ $('#ledExport').addEventListener('click',()=>{ const rows=[['date','type','ref',
 $('#ledAdj').addEventListener('click',()=>{ modal(`<h2>Record a cash movement</h2><p>Owner drawings, a top-up, a refund, a fee. Positive is cash in.</p><div class="form"><div class="f" style="grid-column:span 8"><label>What</label><input id="la_desc" placeholder="Owner top-up"></div><div class="f" style="grid-column:span 4"><label>Amount</label><div class="money"><input id="la_amt" type="number" placeholder="500"></div></div></div><div class="acts"><button class="btn secondary" data-close>Cancel</button><button class="btn" id="la_ok">Record</button></div>`); $('#la_ok').addEventListener('click',()=>{ const d=$('#la_desc').value.trim(), v=+$('#la_amt').value||0; if(!d||!v){ toast('Needs a description and an amount'); return; } ledgerAdd({ type:'other', ref:'manual', desc:d, cash:v, seq:ledSeq++ }); closeModal(); renderAll(); toast('Recorded'); }); });
 $('#autoRunAll').addEventListener('click',()=>{ let n=0; state.autos.filter(a=>a.on).forEach(a=>{ const pl=autoPlan(a); n+=pl.n; pl.apply(); }); renderAll(); toast(`${n} actions applied`); });
 $('#a_ccy').addEventListener('change',()=>{ fxHint(); renderAddPreview(); });
+$('#a_cat').addEventListener('change',()=>{ applyCategory($('#a_cat').value); renderAddPreview(); });
+applyCategory($('#a_cat').value);
+$('#dl_cond').innerHTML = allCondOptions('New, boxed');
+$('#dl_sizeList').innerHTML = allSizeOptions();
 $('#a_cost').addEventListener('input',fxHint);
 $$('#capView button').forEach(b=>b.addEventListener('click',()=>{ state.ui.capView=b.dataset.cv; renderCapital(); }));
 $('#posEdit').addEventListener('change',e=>{ state.ui.inlineEdit=e.target.checked; renderPositions(); });
