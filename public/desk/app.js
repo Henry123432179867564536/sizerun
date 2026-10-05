@@ -421,7 +421,6 @@ function TopBar({ route, header, local, brand }) {
         </a>`
       : html`<a class="topbar-lead brand-lead brand-edit" href=${BRAND_EDIT_HREF} aria-label=${`${brandEditLabel(brand)}${localNote}`} title=${local ? 'Local mode — data stays in this browser' : 'Change your logo, name and colour'}>
           <${Logo} brand=${brand} size=${28} maxWidth=${88} compact />${localDot}
-          <span class="brand-edit-badge" aria-hidden="true"><${Icon} name="edit" size=${10} /></span>
         </a>`}
     <div class="topbar-title" aria-hidden="true">${title}</div>
     ${route.name !== 'search' && html`<a class="topbar-icon" href="#/search" aria-label="Search"><${Icon} name="search" size=${22} /></a>`}
