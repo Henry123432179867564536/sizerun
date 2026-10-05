@@ -712,12 +712,16 @@ function checkLogo(blob) {
   return ext;
 }
 
-// '#w=512&h=171': the stored pixel size rides along in the URL fragment (browsers ignore it
+// '#w=512&h=171&tone=dark': the stored pixel size rides along in the URL fragment (browsers ignore it
 // when fetching), so the shell can reserve the logo's space before it loads.
-function logoFragment({ width, height } = {}) {
+// tone ('dark' | 'light', for logos on a transparent background) lets the shell put a dark
+// logo on a light plate in dark mode, and the other way round.
+function logoFragment({ width, height, tone } = {}) {
   const w = Math.round(Number(width));
   const h = Math.round(Number(height));
-  return w > 0 && h > 0 && w <= 4096 && h <= 4096 ? `#w=${w}&h=${h}` : '';
+  const parts = w > 0 && h > 0 && w <= 4096 && h <= 4096 ? [`w=${w}`, `h=${h}`] : [];
+  if (tone === 'dark' || tone === 'light') parts.push(`tone=${tone}`);
+  return parts.length ? `#${parts.join('&')}` : '';
 }
 
 function bytesToBase64(bytes) {
@@ -790,7 +794,25 @@ function createApiClient({ fetchImpl, getAccessToken }) {
   };
   const localNames = { route: 'Route lookup', places: 'Address search' };
 
-  async function request(path, { method = 'GET', body, service, authenticated }) {
+  // The request's own timeout, combined with the caller's AbortSignal when one is given.
+  function requestSignal(signal) {
+    const timeout = typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(API_TIMEOUT_MS) : undefined;
+    if (!signal) return timeout;
+    if (!timeout) return signal;
+    if (typeof AbortSignal.any === 'function') return AbortSignal.any([signal, timeout]);
+    // Older Safari: forward both into one controller.
+    const controller = new AbortController();
+    const forward = (source) => {
+      if (source.aborted) controller.abort(source.reason);
+      else source.addEventListener('abort', () => controller.abort(source.reason), { once: true });
+    };
+    forward(signal);
+    forward(timeout);
+    return controller.signal;
+  }
+
+  async function request(path, { method = 'GET', body, service, authenticated, signal }) {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
     const headers = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (authenticated && !local) {
@@ -805,9 +827,11 @@ function createApiClient({ fetchImpl, getAccessToken }) {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: typeof AbortSignal?.timeout === 'function' ? AbortSignal.timeout(API_TIMEOUT_MS) : undefined,
+        signal: requestSignal(signal),
       });
     } catch (err) {
+      // The caller cancelled (e.g. a newer search replaced this one): pass the AbortError on.
+      if (signal?.aborted) throw err;
       if (err?.name === 'TimeoutError' || err?.name === 'AbortError') throw failure(MESSAGES.timeout, err);
       if (local && localHints[service]) {
         throw failure(`Can't reach the Sizemill server — ${localHints[service]}.`, err);
@@ -840,10 +864,11 @@ function createApiClient({ fetchImpl, getAccessToken }) {
       return request('/api/route', { method: 'POST', body: { origin, destination }, service: 'route', authenticated: true });
     },
 
-    async places(q) {
+    // options.signal: an AbortSignal; aborting rejects with the AbortError and cancels the fetch.
+    async places(q, { signal } = {}) {
       const query = String(q ?? '').trim().replace(/\s+/g, ' ');
       if (query.length < PLACES_MIN_QUERY) return { ok: true, results: [] };
-      return request(`/api/places?q=${encodeURIComponent(query)}`, { service: 'places', authenticated: true });
+      return request(`/api/places?q=${encodeURIComponent(query)}`, { service: 'places', authenticated: true, signal });
     },
 
     // Public data, sent without a token and with coordinates rounded to 2 dp (about 1 km) so

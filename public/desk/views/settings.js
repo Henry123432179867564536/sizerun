@@ -29,7 +29,9 @@ import {
 import { EPS, assessDeal, dealNumber, dealTotals, round2, tripTotals } from '../lib/calc.js';
 import { date, duration, miles, money, pct, plural, ppl, todayISO } from '../lib/format.js';
 import { DEFAULT_SETTINGS } from '../lib/store.js';
-import { BrandLockup, DEFAULT_BRAND, PRESETS, brandFromSettings, inkFor, normalizeHex, paletteFor, prepareLogo } from '../lib/brand.js';
+import {
+  BrandLockup, DEFAULT_BRAND, Logo, PRESETS, applyBrand, brandFromSettings, cacheBrand, inkFor, normalizeHex, paletteFor, prepareLogo,
+} from '../lib/brand.js';
 import AddressInput, { placeText } from '../components/address-input.js';
 import { FUEL_TYPE_OPTIONS } from '../components/trip-planner.js';
 
@@ -64,7 +66,13 @@ const CSS = `
 .bz-colours { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .bz-swatch { position: relative; display: grid; flex: none; place-items: center; width: 40px; height: 40px; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14); color: #FFFFFF; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .bz-swatch:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
-.bz-swatch[aria-pressed="true"], .bz-swatch.is-on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+.bz-swatch[aria-pressed="true"], .bz-swatch.is-on { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14), 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bz-swatch { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22); }
+  :root:not([data-theme="light"]) .bz-swatch[aria-pressed="true"], :root:not([data-theme="light"]) .bz-swatch.is-on { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+}
+:root[data-theme="dark"] .bz-swatch { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22); }
+:root[data-theme="dark"] .bz-swatch[aria-pressed="true"], :root[data-theme="dark"] .bz-swatch.is-on { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22), 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
 .bz-swatch-custom { background: conic-gradient(from 90deg, #E5484D, #F2C200, #30A46C, #0F6E74, #2F45C5, #8E4EC6, #E5484D); }
 .bz-swatch-custom.is-on { background: var(--sw); }
 .bz-swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
@@ -354,10 +362,9 @@ function leaveLocalMode() {
 
 // ---- sections ----------------------------------------------------------------------------
 
-function homeHint(home) {
-  if (!home) return 'Drives start here unless you pick somewhere else.';
-  if (hasCoords(home)) return 'Pinned on the map. Drives start here unless you pick somewhere else.';
-  return 'Not pinned on the map yet — pick a suggestion so routes start from the right place. A typed address is looked up when you calculate a route.';
+function homeHint() {
+  // The address field shows its own pinned / not pinned status.
+  return 'Drives start here unless you pick somewhere else.';
 }
 
 function toneOf(n) {
@@ -509,6 +516,12 @@ function AccountCard({ store, user }) {
   <//>`;
 }
 
+// The shell picks up saved settings on its next reload; show the new brand right away.
+function showBrand(settings) {
+  applyBrand(settings);
+  cacheBrand(settings);
+}
+
 function previewVars(color) {
   const p = paletteFor(color);
   const vars = [];
@@ -550,7 +563,7 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
     setLogoError(null);
     try {
       const logo = await prepareLogo(file);
-      await store.settings.uploadLogo(logo.blob, { width: logo.width, height: logo.height });
+      showBrand(await store.settings.uploadLogo(logo.blob, { width: logo.width, height: logo.height, tone: logo.tone }));
       toast(hasLogo ? 'Logo replaced.' : 'Logo added.', { tone: 'gain' });
     } catch (err) {
       if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't upload your logo — try again.");
@@ -570,7 +583,7 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
     setBusy('remove');
     setLogoError(null);
     try {
-      await store.settings.removeLogo();
+      showBrand(await store.settings.removeLogo());
       toast('Logo removed.');
     } catch (err) {
       if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't remove your logo — try again.");
@@ -588,8 +601,8 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
       <div class="bz-logo">
         <div class="bz-logo-frame">
           ${hasLogo
-            ? html`<img src=${brand.logo.src} alt=${brand.name ? `${brand.name} logo` : 'Your logo'} />`
-            : html`<${BrandLockup} brand=${{ ...brand, logo: null }} size=${48} sub="" class="bz-logo-mono" />`}
+            ? html`<img class=${brand.logo.tone ? `brand-logo tone-${brand.logo.tone}` : undefined} src=${brand.logo.src} alt=${brand.name ? `${brand.name} logo` : 'Your logo'} />`
+            : html`<${Logo} brand=${brand} size=${48} />`}
         </div>
         <div class="bz-logo-body">
           <span class="bz-logo-title">Logo</span>
@@ -754,6 +767,7 @@ export default function SettingsView({ store, user }) {
     setSaving(true);
     try {
       const saved = await store.settings.save(patchFromForm(form));
+      showBrand(saved);
       if (!mountedRef.current) return;
       const next = formFromSettings(saved);
       setForm(next);
@@ -785,7 +799,7 @@ export default function SettingsView({ store, user }) {
 
       <${Card} title="Drives" subtitle="Where drives start and the car you drive.">
         <div class="form-grid">
-          <${Field} class="span-all" label="Home address" hint=${homeHint(form.home)}>
+          <${Field} class="span-all" label="Home address" hint=${homeHint()}>
             <${AddressInput}
               store=${store}
               value=${form.home}

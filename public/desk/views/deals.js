@@ -106,9 +106,10 @@ const CSS = `
 }
 .sales-table { display: none; }
 @media (min-width: 640px) { .sales-table { display: block; } .sales-rows { display: none; } }
-.sale-row.list-item { align-items: flex-start; gap: 12px; min-height: 64px; padding: 10px 16px; }
+.sale-row.list-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 12px; min-height: 64px; padding: 10px 16px; }
 .sale-row .list-title { font-weight: 600; }
-.sale-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 3px; color: var(--ink-2); font-size: 12.5px; }
+.sale-row-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 4px; color: var(--ink-2); font-size: 12.5px; }
+.repeat-block .sf-sum { background: var(--surface); }
 .sale-amt { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .sale-amt-sub { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
 .sale-dot { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
@@ -1224,7 +1225,6 @@ function SaleRow({ row, navigate }) {
 function SaleListRow({ row }) {
   const { deal, totals, toBuy } = row;
   const status = statusMeta[deal.status] ?? statusMeta.agreed;
-  const payment = paymentMeta[totals.paymentStatus] ?? paymentMeta.none;
   const cancelled = deal.status === 'cancelled';
   const dueSoon = deal.due_date && OPEN_STATUSES.has(deal.status);
   const overdue = dueSoon && deal.due_date < todayISO();
@@ -1233,14 +1233,7 @@ function SaleListRow({ row }) {
   return html`<a class="list-item sale-row" href=${`#/sales/${deal.id}`}>
     <div class="list-main">
       <div class="list-title">${deal.client?.name ?? deal.title ?? 'No client'}</div>
-      <div class="list-sub"><span class="mono">${dealNumber(deal.number)}</span> · ${itemsSummary(deal.items)}</div>
-      <div class="sale-row-meta">
-        <span class="sale-dot" data-tone=${status.tone}>${status.label}</span>
-        ${units > 1 && html`<span>${units} items</span>`}
-        ${!cancelled && totals.paymentStatus !== 'none' && html`<span class="sale-dot" data-tone=${payment.tone}>${payment.label}</span>`}
-        ${toBuy > 0 && !cancelled && html`<span class="tone-warn">${toBuy} to buy</span>`}
-        ${dueSoon && html`<span class=${overdue ? 'tone-loss' : undefined}>due ${relDays(deal.due_date)}</span>`}
-      </div>
+      <div class="list-sub">${itemsSummary(deal.items)}</div>
     </div>
     <div class="list-aside">
       <div class=${cx('sale-amt', !cancelled && (totals.netProfit < -EPS ? 'tone-loss' : totals.netProfit > EPS ? 'tone-gain' : null), cancelled && 'tone-muted')}>
@@ -1249,6 +1242,13 @@ function SaleListRow({ row }) {
       <div class="sale-amt-sub">
         ${totals.certainty === 'estimated' && !cancelled ? 'est. · ' : ''}${owed ? `${money(totals.balance)} owed` : `${money(totals.revenue)} sale`}
       </div>
+    </div>
+    <div class="sale-row-meta">
+      <span class="sale-dot" data-tone=${status.tone}>${status.label}</span>
+      ${units > 1 && html`<span>${units} items</span>`}
+      ${!cancelled && totals.paymentStatus === 'paid' && html`<span class="sale-dot" data-tone="gain">Paid</span>`}
+      ${toBuy > 0 && !cancelled && html`<span class="tone-warn">${toBuy} to buy</span>`}
+      ${dueSoon && html`<span class=${overdue ? 'tone-loss' : undefined}>due ${relDays(deal.due_date)}</span>`}
     </div>
   </a>`;
 }
@@ -1287,7 +1287,7 @@ function SalesList({ store, params, navigate }) {
   const revenue = sum((row) => row.totals.revenue);
   const profit = sum((row) => row.totals.netProfit);
   const owed = sum((row) => (isOwed(row) ? row.totals.balance : 0));
-  const profitNote = live.some(isEstimated) ? ' (some est.)' : '';
+  const profitNote = live.length > 0 && live.every(isEstimated) ? ' est.' : '';
   const wide = useMedia('(min-width: 900px)');
 
   const actions = html`<${Button} kind="primary" icon="plus" href="#/sales/new">New sale<//>`;
@@ -1313,7 +1313,7 @@ function SalesList({ store, params, navigate }) {
   const cardTitle = plural(shown.length, 'sale');
   const cardSub = tab === 'cancelled'
     ? 'Cancelled sales are left out of every total.'
-    : [`${money(revenue, { pence: false })} sales`, `${money(profit, { pence: false })} profit${profitNote}`, owed > EPS && `${money(owed, { pence: false })} owed`]
+    : [`${money(profit, { pence: false })} profit${profitNote}`, owed > EPS && `${money(owed, { pence: false })} owed`, `${money(revenue, { pence: false })} in sales`]
       .filter(Boolean).join(' · ');
 
   return page(html`

@@ -953,8 +953,8 @@ describe('memory store: branding', () => {
   test('uploadLogo() keeps the image as a data: URL with its size, and survives a reload', async () => {
     const { store, storage } = await memoryStore();
     const changes = watch(store);
-    const saved = await store.settings.uploadLogo(pngBlob(), { width: 512, height: 171 });
-    assert.equal(saved.logo_url, `data:image/png;base64,${TINY_PNG.toString('base64')}#w=512&h=171`);
+    const saved = await store.settings.uploadLogo(pngBlob(), { width: 512, height: 171, tone: 'dark' });
+    assert.equal(saved.logo_url, `data:image/png;base64,${TINY_PNG.toString('base64')}#w=512&h=171&tone=dark`);
     assert.equal(changes.count, 1);
     assert.equal(savedDatabase(storage).desk_settings[0].logo_url, saved.logo_url);
     const reloaded = await createStore({ mode: 'memory', storage, fetchImpl: refuseFetch });
@@ -1344,5 +1344,25 @@ describe('supabase mode (fake client)', () => {
 
     client.storageRespond.remove = () => { throw new Error('offline'); };
     await store.settings.removeLogo(); // a failed tidy-up never fails the removal
+  });
+
+  test('api.places() can be cancelled with an AbortSignal', async () => {
+    // Like fetch: rejects at once for an aborted signal, or when it is aborted later.
+    const fetchImpl = (url, init) => new Promise((resolve, reject) => {
+      if (init.signal.aborted) reject(init.signal.reason);
+      init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true });
+    });
+    const { store } = await supabaseStore({ fetchImpl });
+    const controller = new AbortController();
+    const pending = store.api.places('Southampton', { signal: controller.signal });
+    controller.abort();
+    await assert.rejects(pending, (err) => err.name === 'AbortError');
+    await assert.rejects(store.api.places('Southampton', { signal: controller.signal }), (err) => err.name === 'AbortError');
+
+    const { store: local } = await memoryStore({ fetchImpl: async (url, init) => {
+      assert.ok(init.signal instanceof AbortSignal);
+      return { ok: true, status: 200, json: async () => ({ ok: true, results: [] }) };
+    } });
+    assert.deepEqual(await local.api.places('Southampton', { signal: new AbortController().signal }), { ok: true, results: [] });
   });
 });

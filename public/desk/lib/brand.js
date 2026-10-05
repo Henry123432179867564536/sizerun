@@ -184,7 +184,10 @@ export function monogram(name) {
   return words.slice(0, 2).map((word) => Array.from(word)[0].toLocaleUpperCase('en-GB')).join('');
 }
 
-/** A logo_url → { src, w, h } (w/h from the '#w=…&h=…' fragment, or null), or null if unusable. */
+/**
+ * A logo_url → { src, w, h, tone } from the '#w=…&h=…&tone=…' fragment (each null when missing),
+ * or null when the URL is unusable.
+ */
 export function parseLogo(url) {
   if (typeof url !== 'string') return null;
   const value = url.trim();
@@ -198,7 +201,8 @@ export function parseLogo(url) {
   };
   const w = size('w');
   const h = size('h');
-  return { src, w: w && h ? w : null, h: w && h ? h : null };
+  const tone = ['dark', 'light'].includes(params.get('tone')) ? params.get('tone') : null;
+  return { src, w: w && h ? w : null, h: w && h ? h : null, tone };
 }
 
 function cleanName(value) {
@@ -391,10 +395,22 @@ function drawScaled(source, width, height, edge) {
   return draw(current, tw, th);
 }
 
-function hasTransparency(canvas) {
+// { transparent, tone }: tone is 'dark' or 'light' for a logo on a transparent background,
+// from the average luminance of its visible pixels (null when opaque or mid-grey).
+function inspect(canvas) {
   const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
-  for (let i = 3; i < data.length; i += 4) if (data[i] < 250) return true;
-  return false;
+  let transparent = false;
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 250) transparent = true;
+    if (data[i + 3] < 128) continue;
+    sum += (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+    count += 1;
+  }
+  const mean = count ? sum / count : 0.5;
+  const tone = transparent && count ? (mean < 0.45 ? 'dark' : mean > 0.65 ? 'light' : null) : null;
+  return { transparent, tone };
 }
 
 function flatten(canvas) {
@@ -408,8 +424,8 @@ function flatten(canvas) {
   return out;
 }
 
-async function encode(canvas) {
-  if (hasTransparency(canvas)) {
+async function encode(canvas, transparent) {
+  if (transparent) {
     const png = await canvasBlob(canvas, 'image/png');
     if (png && png.size <= LOGO_MAX_BYTES) return png;
     const webp = await canvasBlob(canvas, 'image/webp', 0.9); // keeps transparency where supported
@@ -426,7 +442,7 @@ async function encode(canvas) {
 
 /**
  * Any image the browser can read (a PNG/JPEG/WebP logo, an iPhone photo) → a logo ready to
- * upload: { blob, type, width, height }. Longest edge ≤ 512px, transparency kept as PNG,
+ * upload: { blob, type, width, height, tone }. Longest edge ≤ 512px, transparency kept as PNG,
  * otherwise WebP or JPEG; always ≤ 1 MB. Rejects with a sentence for people.
  */
 export async function prepareLogo(file) {
@@ -454,8 +470,9 @@ export async function prepareLogo(file) {
 
   for (const edge of [LOGO_EDGE, 384, 256]) {
     const canvas = drawScaled(image, width, height, edge);
-    const blob = await encode(canvas);
-    if (blob) return { blob, type: blob.type, width: canvas.width, height: canvas.height };
+    const { transparent, tone } = inspect(canvas);
+    const blob = await encode(canvas, transparent);
+    if (blob) return { blob, type: blob.type, width: canvas.width, height: canvas.height, tone };
   }
   throw new Error("Couldn't make that image small enough — try a simpler logo file.");
 }
@@ -474,7 +491,14 @@ const CSS = `
 .topbar-icon:hover { background: var(--hover); color: var(--ink); text-decoration: none; }
 .nav-kbd { margin-left: auto; padding: 0 6px; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-3); font: 500 11px/18px var(--mono); }
 .auth-brand .brand-lockup.has-logo { align-items: center; width: 100%; text-align: center; }
-.brand-logo { display: block; flex: none; object-fit: contain; object-position: left center; }
+.brand-logo { display: block; flex: none; box-sizing: border-box; object-fit: contain; object-position: left center; }
+.brand-logo.tone-light { padding: 2px 4px; border-radius: 6px; background: #1B2028; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-logo.tone-light { padding: 0; background: none; }
+  :root:not([data-theme="light"]) .brand-logo.tone-dark { padding: 2px 4px; border-radius: 6px; background: #F3F3EF; }
+}
+:root[data-theme="dark"] .brand-logo.tone-light { padding: 0; background: none; }
+:root[data-theme="dark"] .brand-logo.tone-dark { padding: 2px 4px; border-radius: 6px; background: #F3F3EF; }
 .brand-monogram { display: inline-grid; flex: none; place-items: center; width: var(--mono-size, 32px); height: var(--mono-size, 32px); border-radius: calc(var(--mono-size, 32px) * 0.28); background: var(--brand, var(--signal)); color: var(--brand-ink, var(--on-signal)); font-size: calc(var(--mono-size, 32px) * 0.4); font-weight: 600; letter-spacing: 0.02em; line-height: 1; user-select: none; }
 `;
 
@@ -513,7 +537,7 @@ export function Logo({ settings, brand: given, size = 32, maxWidth, compact = fa
       ? `width:${box.width}px;height:${box.height}px`
       : `height:${size}px;width:auto;max-width:${limit}px`;
     return html`<img
-      class=${['brand-logo', classAttr].filter(Boolean).join(' ')}
+      class=${['brand-logo', logo.tone && `tone-${logo.tone}`, classAttr].filter(Boolean).join(' ')}
       src=${logo.src}
       alt=${label}
       width=${box?.width}
@@ -549,8 +573,9 @@ export function BrandLockup({ brand, size = 32, sub = 'Desk', logoMaxWidth = 176
       <span class="brand-name">${b.name ?? ''}${b.name && html`<small>${sub}</small>`}</span>
     </span>`;
   }
+  // Sizemill's own mark keeps its usual 24px when there is no brand to show.
   return html`<span class=${classes()}>
-    <${Logo} brand=${b} size=${size} />
+    <${Logo} brand=${b} size=${b.monogram ? size : 24} />
     <span class="brand-name">${b.name ?? 'Sizemill'}<small>${sub}</small></span>
   </span>`;
 }

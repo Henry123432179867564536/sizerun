@@ -126,8 +126,9 @@ const CSS = `
 .cl-addr-fields { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .cl-addr-fields > * { min-width: 0; }
 @media (max-width: 519.98px) {
+  .cl-form .form-bar { flex-wrap: nowrap; }
   .cl-form .form-bar .btn { flex: 1 1 0; }
-  .cl-form .form-bar-summary:empty { display: none; }
+  .cl-form .form-bar-summary { display: none; }
 }
 .cl-hint-line { margin-top: 10px; }
 .cl-profile-stats .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -445,12 +446,28 @@ function uniqueSorted(values) {
   return [...seen.values()].sort((a, b) => a.localeCompare(b, 'en-GB'));
 }
 
+/** Tags in use, most used first, then `extra` ideas not already there (case-insensitive). */
+function popularFirst(used, extra) {
+  const counts = new Map();
+  for (const value of used) {
+    const text = clean(value);
+    if (!text) continue;
+    const key = text.toLowerCase();
+    const entry = counts.get(key) ?? { text, n: 0 };
+    entry.n += 1;
+    counts.set(key, entry);
+  }
+  const ordered = [...counts.values()].sort((a, b) => b.n - a.n || a.text.localeCompare(b.text, 'en-GB')).map((e) => e.text);
+  for (const idea of extra) if (!counts.has(idea.toLowerCase())) ordered.push(idea);
+  return ordered;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Form controls
 // ---------------------------------------------------------------------------------------------
 
 /** Tags as removable chips: Enter or a comma adds what's typed, Backspace on empty removes. */
-function TagInput({ value, onChange, suggestions = [] }) {
+function TagInput({ value, onChange, suggestions = [], quick: quickTags = [] }) {
   const field = useField();
   const listId = useId('tag-ideas');
   const inputRef = useRef(null);
@@ -499,7 +516,8 @@ function TagInput({ value, onChange, suggestions = [] }) {
     }
   }
 
-  const quick = full ? [] : ideas.slice(0, 6);
+  // Tappable chips: your most used tags first, then the built-in ideas.
+  const quick = full ? [] : quickTags.filter((tag) => !value.some((t) => t.toLowerCase() === tag.toLowerCase())).slice(0, 6);
   return html`<div class="stack stack-sm">
   <div class="cl-tag-input" onClick=${(event) => event.target === event.currentTarget && inputRef.current?.focus()}>
     ${value.map((tag) => html`<span key=${tag} class="cl-tag">
@@ -643,6 +661,7 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
       clubs: uniqueSorted(rows.map((other) => other.club)),
       positions: uniqueSorted([...POSITIONS, ...rows.map((other) => other.position)]),
       tags: uniqueSorted([...rows.flatMap((other) => other.tags ?? []), ...TAG_IDEAS]),
+      quickTags: popularFirst([...rows.flatMap((other) => other.tags ?? [])], TAG_IDEAS),
     };
   }, [others, client?.id]);
 
@@ -788,7 +807,7 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
             <${Textarea} value=${form.preferences} placeholder="e.g. Jordan 1 Highs, Stone Island, no white trainers" onInput=${set('preferences')} />
           <//>
           <${Field} label="Tags" hint="Tap a suggestion, or type and press Enter." class="span-all">
-            <${TagInput} value=${form.tags} onChange=${(tags) => setValue('tags', tags)} suggestions=${suggestions.tags} />
+            <${TagInput} value=${form.tags} onChange=${(tags) => setValue('tags', tags)} suggestions=${suggestions.tags} quick=${suggestions.quickTags} />
           <//>
         </div>
       <//>
@@ -896,8 +915,8 @@ function ProfileStats({ stats, target }) {
   let profitSub = 'No orders yet';
   if (hasSales) {
     profitSub = [
-      stats.margin !== null && `${pct(stats.margin)} margin${belowTarget ? ` · under ${pct(target)} target` : ''}`,
-      pending && `${money(stats.pendingProfit)} still pending`,
+      stats.margin !== null && `${pct(stats.margin)} margin${belowTarget ? ` (target ${pct(target)})` : ''}`,
+      pending && `${money(stats.pendingProfit)} pending`,
     ].filter(Boolean).join(' · ') || 'All realised';
   }
   let owedSub = hasSales ? 'All paid up' : '—';
@@ -1336,8 +1355,8 @@ function ClientProfile({ store, id, params, navigate }) {
       title="Archived"
       actions=${html`<${Button} size="sm" loading=${busy === 'archive'} onClick=${toggleArchived}>Unarchive<//>`}
     >Hidden from your client list. Their sales still count in every total.<//>`}
-    <${ProfileHero} client=${client} onEdit=${startEdit} />
     <${ProfileStats} stats=${stats} target=${Number(settings?.target_margin) || 0} />
+    <${ProfileHero} client=${client} onEdit=${startEdit} />
     <div class="cl-layout">
       <div class="cl-main stack">
         <${SalesCard} client=${client} deals=${deals} navigate=${navigate} />

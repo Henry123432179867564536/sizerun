@@ -117,9 +117,10 @@ describe('colour', () => {
 describe('brand data', () => {
   test('parseLogo reads the size fragment and refuses unusable URLs', () => {
     const url = 'https://x.supabase.co/storage/v1/object/public/brand/u/logo-1759677000000.png#w=512&h=171';
-    assert.deepEqual(parseLogo(url), { src: url.split('#')[0], w: 512, h: 171 });
-    assert.deepEqual(parseLogo('https://x/logo.png'), { src: 'https://x/logo.png', w: null, h: null });
-    assert.deepEqual(parseLogo('https://x/logo.png#w=abc&h=-1'), { src: 'https://x/logo.png', w: null, h: null });
+    assert.deepEqual(parseLogo(url), { src: url.split('#')[0], w: 512, h: 171, tone: null });
+    assert.deepEqual(parseLogo(`${url}&tone=dark`), { src: url.split('#')[0], w: 512, h: 171, tone: 'dark' });
+    assert.deepEqual(parseLogo('https://x/logo.png'), { src: 'https://x/logo.png', w: null, h: null, tone: null });
+    assert.deepEqual(parseLogo('https://x/logo.png#w=abc&h=-1&tone=pink'), { src: 'https://x/logo.png', w: null, h: null, tone: null });
     assert.equal(parseLogo('data:image/png;base64,AAAA#w=10&h=10').src, 'data:image/png;base64,AAAA');
     for (const bad of [null, '', 'http://x/logo.png', 'javascript:alert(1)', 'data:image/svg+xml;base64,AAAA', 'data:text/html,hi']) {
       assert.equal(parseLogo(bad), null, String(bad));

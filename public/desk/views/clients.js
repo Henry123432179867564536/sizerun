@@ -52,7 +52,7 @@ const CSS = `
 }
 @media (max-width: 639.98px) {
   .cl-table td.cell-primary { min-width: 0; }
-  .cl-toolbar > .select-wrap { flex-basis: 132px; max-width: 42%; }
+  .cl-toolbar > .select-wrap { flex-basis: 150px; max-width: 45%; }
 }
 
 /* Compact two-line list rows for phones (shared by Clients, Client, Stock, Trips): title and
@@ -442,10 +442,11 @@ export default function ClientsView({ store, params, navigate }) {
 
   const sum = (pick) => shown.reduce((total, row) => total + pick(row.stats), 0);
   const owed = sum((stats) => stats.owed);
+  const pounds = (n) => money(n, { pence: false });
   const cardSubtitle = [
-    `${money(sum((stats) => stats.revenue))} revenue`,
-    `${money(sum((stats) => stats.netProfit))} profit`,
-    owed > EPS && `${money(owed)} owed`,
+    `${pounds(sum((stats) => stats.netProfit))} profit`,
+    `${pounds(sum((stats) => stats.revenue))} revenue`,
+    owed > EPS && `${pounds(owed)} owed`,
   ].filter(Boolean).join(' · ');
 
   let emptyTitle;
