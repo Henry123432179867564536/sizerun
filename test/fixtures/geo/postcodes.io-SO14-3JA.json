@@ -1,0 +1,16 @@
+{
+ "status": 200,
+ "result": {
+  "postcode": "SO14 3JA",
+  "quality": 1,
+  "country": "England",
+  "longitude": -1.390705,
+  "latitude": 50.89742,
+  "region": "South East",
+  "outcode": "SO14",
+  "incode": "3JA",
+  "admin_district": "Southampton",
+  "admin_ward": "Bargate",
+  "parish": "Southampton, unparished area"
+ }
+}

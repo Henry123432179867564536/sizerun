@@ -1,0 +1,37 @@
+{
+ "last_updated": "05/10/2026 09:58:05",
+ "stations": [
+  {
+   "site_id": "gcw2trbpdxqk",
+   "brand": "BP",
+   "address": "Birch Service Area, M62 Motorway, Heywood, Lancashire, OL10 2QH",
+   "postcode": "OL10 2QH",
+   "location": {
+    "latitude": 53.5693,
+    "longitude": -2.23011
+   },
+   "prices": {
+    "E5": 217.9,
+    "E10": 197.9,
+    "B7": 217.9,
+    "SDV": 237.9
+   }
+  },
+  {
+   "site_id": "gcw2tpw2ny66",
+   "brand": "BP",
+   "address": "Birch Service Area, M62 Motorway, Heywood, Lancashire, OL10 2QH",
+   "postcode": "OL10 2QH",
+   "location": {
+    "latitude": 53.5666,
+    "longitude": -2.23234
+   },
+   "prices": {
+    "E5": 217.9,
+    "E10": 197.9,
+    "B7": 217.9,
+    "SDV": 237.9
+   }
+  }
+ ]
+}

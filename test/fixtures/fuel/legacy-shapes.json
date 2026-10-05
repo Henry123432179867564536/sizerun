@@ -1,0 +1,58 @@
+{
+ "_note": "Synthetic: two real Esso Southampton stations rewritten in shapes older or sloppier CMA feeds use (no last_updated, numbers as strings, prices in pounds or with a p suffix, lower-case fuel keys, coordinates on the station itself), plus stations that must be dropped.",
+ "stations": [
+  {
+   "site_id": "gcp18jxhxv06",
+   "brand": "ESSO",
+   "address": "  Lodge Road,  SOUTHAMPTON ",
+   "postcode": "so146rp",
+   "location": {
+    "latitude": "50.919684",
+    "longitude": "-1.396304"
+   },
+   "prices": {
+    "E10": "1.739",
+    "E5": "£1.889",
+    "B7": "200.9p",
+    "SDV": ""
+   }
+  },
+  {
+   "site_id": "gcp19jyp9p2n",
+   "brand": "Esso ",
+   "address": "149 WEST END ROAD, BITTERNE, SOUTHAMPTON",
+   "postcode": "SO18 6PJ",
+   "latitude": 50.921585,
+   "longitude": -1.354022,
+   "prices": {
+    "e10": 173.9,
+    "b7": "200.9",
+    "sdv": 2.149
+   }
+  },
+  {
+   "site_id": "synthetic-no-location",
+   "brand": "ESSO",
+   "address": "Nowhere",
+   "postcode": "SO14 0AA",
+   "prices": {
+    "E10": 170.9
+   }
+  },
+  {
+   "site_id": "synthetic-no-prices",
+   "brand": "ESSO",
+   "address": "Closed site",
+   "postcode": "SO14 0AB",
+   "location": {
+    "latitude": 50.91,
+    "longitude": -1.4
+   },
+   "prices": {
+    "E10": null,
+    "B7": "",
+    "E5": 0
+   }
+  }
+ ]
+}

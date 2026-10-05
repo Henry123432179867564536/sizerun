@@ -1,0 +1,57 @@
+{
+ "status": 200,
+ "result": [
+  {
+   "postcode": "SO14 3AB",
+   "quality": 1,
+   "country": "England",
+   "longitude": -1.394126,
+   "latitude": 50.896844,
+   "region": "South East",
+   "outcode": "SO14",
+   "incode": "3AB",
+   "admin_district": "Southampton",
+   "admin_ward": "Bargate",
+   "parish": "Southampton, unparished area"
+  },
+  {
+   "postcode": "SO14 3AD",
+   "quality": 1,
+   "country": "England",
+   "longitude": -1.393368,
+   "latitude": 50.897173,
+   "region": "South East",
+   "outcode": "SO14",
+   "incode": "3AD",
+   "admin_district": "Southampton",
+   "admin_ward": "Bargate",
+   "parish": "Southampton, unparished area"
+  },
+  {
+   "postcode": "SO14 3AE",
+   "quality": 1,
+   "country": "England",
+   "longitude": -1.397202,
+   "latitude": 50.895385,
+   "region": "South East",
+   "outcode": "SO14",
+   "incode": "3AE",
+   "admin_district": "Southampton",
+   "admin_ward": "Bargate",
+   "parish": "Southampton, unparished area"
+  },
+  {
+   "postcode": "SO14 3AF",
+   "quality": 1,
+   "country": "England",
+   "longitude": -1.393051,
+   "latitude": 50.897486,
+   "region": "South East",
+   "outcode": "SO14",
+   "incode": "3AF",
+   "admin_district": "Southampton",
+   "admin_ward": "Bargate",
+   "parish": "Southampton, unparished area"
+  }
+ ]
+}

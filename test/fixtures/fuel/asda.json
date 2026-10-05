@@ -1,0 +1,190 @@
+{
+ "last_updated": "05/10/2026 09:59:17",
+ "stations": [
+  {
+   "site_id": "gcyck033zj0b",
+   "brand": "Asda",
+   "address": "Moorfarm Roundabout, Cramlington",
+   "postcode": "NE23 7QA",
+   "location": {
+    "latitude": 55.065163,
+    "longitude": -1.579758
+   },
+   "prices": {
+    "E10": 173.9,
+    "E5": 10,
+    "B7": 199.9
+   }
+  },
+  {
+   "site_id": "gcpqtxx2ybd9",
+   "brand": "Asda",
+   "address": "Wendover Road, Aylesbury",
+   "postcode": "HP21 9LB",
+   "location": {
+    "latitude": 51.80977,
+    "longitude": -0.803559
+   },
+   "prices": {
+    "E10": 171.9,
+    "E5": 190.9,
+    "B7": 198.9,
+    "SDV": 999.9
+   }
+  },
+  {
+   "site_id": "gcp1dmxhzf0b",
+   "brand": "Asda",
+   "address": "Grange Road, Southampton",
+   "postcode": "SO30 2FU",
+   "location": {
+    "latitude": 50.916582,
+    "longitude": -1.290345
+   },
+   "prices": {
+    "E10": 174.9,
+    "E5": 192.9,
+    "B7": 199.9,
+    "SDV": 217.9
+   }
+  },
+  {
+   "site_id": "gcp1cque463p",
+   "brand": "Asda",
+   "address": "10 Bishopstoke Road, Eastleigh",
+   "postcode": "SO50 6AF",
+   "location": {
+    "latitude": 50.970043,
+    "longitude": -1.345124
+   },
+   "prices": {
+    "E10": 174.9,
+    "E5": 193.9,
+    "B7": 199.9,
+    "SDV": 218.9
+   }
+  },
+  {
+   "site_id": "gcp1bq7dd7bm",
+   "brand": "Asda",
+   "address": "Bournemouth Road, Eastleigh",
+   "postcode": "SO53 3YJ",
+   "location": {
+    "latitude": 50.966475,
+    "longitude": -1.389003
+   },
+   "prices": {
+    "E10": 177.9,
+    "B7": 199.9
+   }
+  },
+  {
+   "site_id": "gcnfjumnmwe9",
+   "brand": "Asda",
+   "address": "Great Bridge Road, Romsey",
+   "postcode": "SO51 0HB",
+   "location": {
+    "latitude": 50.997984,
+    "longitude": -1.498877
+   },
+   "prices": {
+    "E10": 178.9,
+    "E5": 197.9,
+    "B7": 204.9,
+    "SDV": 223.9
+   }
+  },
+  {
+   "site_id": "gcp16tvbuzty",
+   "brand": "Asda",
+   "address": "Ridge Road, Southampton",
+   "postcode": "SO31 7ZE",
+   "location": {
+    "latitude": 50.872203,
+    "longitude": -1.271305
+   },
+   "prices": {
+    "E10": 174.9,
+    "E5": 193.9,
+    "B7": 196.9,
+    "SDV": 215.9
+   }
+  },
+  {
+   "site_id": "gcncxh9ku09h",
+   "brand": "Asda",
+   "address": "Millbrook Road, Southampton",
+   "postcode": "SO15 0JU",
+   "location": {
+    "latitude": 50.913057,
+    "longitude": -1.444232
+   },
+   "prices": {
+    "E10": 180.9,
+    "B7": 201.9
+   }
+  },
+  {
+   "site_id": "gcr3m8rsmk3h",
+   "brand": "Asda",
+   "address": "A45 East Bound Nene Valley Way, Northampton",
+   "postcode": "NN3 5LU",
+   "location": {
+    "latitude": 52.255457,
+    "longitude": -0.791979
+   },
+   "prices": {
+    "E10": 182.9,
+    "E5": 201.9,
+    "B7": 199.9
+   }
+  },
+  {
+   "site_id": "gcr3m8rsmk3h",
+   "brand": "Asda",
+   "address": "A45 Westbound, Nene Valley Way, Northampton",
+   "postcode": "NN3 5LU",
+   "location": {
+    "latitude": 52.254547,
+    "longitude": -0.794104
+   },
+   "prices": {
+    "E10": 181.9,
+    "E5": 200.9,
+    "B7": 199.9,
+    "SDV": 218.9
+   }
+  },
+  {
+   "site_id": "gcncwtxc0uk4",
+   "brand": "Asda",
+   "address": "Redbridge Road, Southampton",
+   "postcode": "SO15 0LT",
+   "location": {
+    "latitude": 50.918957,
+    "longitude": -1.461798
+   },
+   "prices": {
+    "E10": 181.9,
+    "E5": 200.9,
+    "B7": 201.9,
+    "SDV": 220.9
+   }
+  },
+  {
+   "site_id": "gcncwj60y5mj",
+   "brand": "Asda",
+   "address": "65 Ringwood Road, Southampton",
+   "postcode": "SO40 8DD",
+   "location": {
+    "latitude": 50.917624,
+    "longitude": -1.491086
+   },
+   "prices": {
+    "E10": 177.9,
+    "E5": 196.9,
+    "B7": 199.9
+   }
+  }
+ ]
+}

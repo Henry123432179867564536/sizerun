@@ -1,0 +1,50 @@
+{
+ "stations": [
+  {
+   "location": {
+    "longitude": -1.40986,
+    "latitude": 52.533601
+   },
+   "prices": {
+    "SDV": 208.9,
+    "E10": 155.9,
+    "B7": 189.9
+   },
+   "site_id": "gcqfzgmq7vh0",
+   "postcode": "LE10 3ED",
+   "address": "WATLING STREET - A5, HINCKLEY, LEICESTERSHIRE, LE10 3ED",
+   "brand": "BP"
+  },
+  {
+   "location": {
+    "longitude": -1.33657,
+    "latitude": 50.91442
+   },
+   "prices": {
+    "E5": 176.9,
+    "E10": 157.9,
+    "B7": 189.9
+   },
+   "site_id": "gcp19sdtzxv1",
+   "postcode": "SO18 5TQ",
+   "address": "THORNHILL PARK ROAD(A334) , THORNHIL PARK, SOUTHAMPTON, HAMPSHIRE, SO18 5TQ",
+   "brand": "Esso"
+  },
+  {
+   "location": {
+    "longitude": -1.53629,
+    "latitude": 50.95539
+   },
+   "prices": {
+    "E5": 179.9,
+    "E10": 159.9,
+    "B7": 189.9
+   },
+   "site_id": "gcncvh1k9v5j",
+   "postcode": "SO51 6GF",
+   "address": "OWER ROUNDABOUT, OWNER, ROMSEY, HAMPSHIRE, SO51 6GF",
+   "brand": "Esso"
+  }
+ ],
+ "last_updated": "01/05/2026 10:55:06"
+}

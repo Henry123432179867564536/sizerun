@@ -1,0 +1,23 @@
+[
+ {
+  "place_id": 283740386,
+  "licence": "Data © OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+  "osm_type": "relation",
+  "osm_id": 976258,
+  "lat": "50.9058615",
+  "lon": "-1.3908774",
+  "category": "leisure",
+  "type": "stadium",
+  "place_rank": 30,
+  "importance": 0.5281779417542597,
+  "addresstype": "leisure",
+  "name": "St. Mary's Stadium",
+  "display_name": "St. Mary's Stadium, Britannia Road, Belvidere, Northam, Southampton, England, SO14 5FP, United Kingdom",
+  "boundingbox": [
+   "50.9049268",
+   "50.9066572",
+   "-1.3920618",
+   "-1.3896977"
+  ]
+ }
+]

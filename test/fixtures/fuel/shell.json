@@ -1,0 +1,61 @@
+{
+ "last_updated": "13/05/2026 00:00:00",
+ "stations": [
+  {
+   "site_id": "gcncxx2z2tg1",
+   "brand": "SHELL",
+   "address": "234 WINCHESTER ROAD",
+   "postcode": "SO16 6TL",
+   "location": {
+    "latitude": 50.929773,
+    "longitude": -1.427167
+   },
+   "prices": {
+    "B7": 192.9,
+    "E10": 163.9
+   }
+  },
+  {
+   "site_id": "gcp12h34fk25",
+   "brand": "SHELL",
+   "address": "SOUTHAMPTON ROAD",
+   "postcode": "SO45 5DA",
+   "location": {
+    "latitude": 50.868568,
+    "longitude": -1.40478
+   },
+   "prices": {
+    "B7": 189.9,
+    "E10": 159.9
+   }
+  },
+  {
+   "site_id": "gcp1b59xw3gt",
+   "brand": "SHELL",
+   "address": "CHILWORTH ROUNDABOUT",
+   "postcode": "SO16 7LQ",
+   "location": {
+    "latitude": 50.953141,
+    "longitude": -1.403917
+   },
+   "prices": {
+    "B7": 191.9,
+    "E10": 164.9
+   }
+  },
+  {
+   "site_id": "gcp1b8g79u47",
+   "brand": "SHELL",
+   "address": "THOMAS LEWIS WAY",
+   "postcode": "SO17 3ED",
+   "location": {
+    "latitude": 50.93736,
+    "longitude": -1.379736
+   },
+   "prices": {
+    "B7": 191.9,
+    "E10": 162.9
+   }
+  }
+ ]
+}

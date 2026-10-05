@@ -1,0 +1,31 @@
+{
+ "status": 200,
+ "result": {
+  "outcode": "SO14",
+  "longitude": -1.397394796948356,
+  "latitude": 50.90719082981226,
+  "northings": 112143,
+  "eastings": 442466,
+  "admin_district": [
+   "Southampton"
+  ],
+  "parish": [
+   "Southampton, unparished area"
+  ],
+  "admin_county": [],
+  "admin_ward": [
+   "Banister & Polygon",
+   "Bargate",
+   "Bevois",
+   "Bitterne Park",
+   "Portswood"
+  ],
+  "country": [
+   "England"
+  ],
+  "parliamentary_constituency": [
+   "Southampton Itchen",
+   "Southampton Test"
+  ]
+ }
+}
