@@ -67,12 +67,7 @@ const PICKER_LIMIT = 6;
 // views/calculator.js does. Field pairs are explicit (never auto-fit, so nothing is stranded or
 // squeezed); dates take the full width on phones, where iOS date controls ignore narrow widths.
 const CSS = `
-.sf-grid { display: grid; gap: 16px 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.sf-grid > * { min-width: 0; }
-.sf-grid > .span-all { grid-column: 1 / -1; }
-.sf-grid.sf-qty { grid-template-columns: minmax(0, 1fr) 96px; }
-@media (max-width: 639.98px) { .sf-grid > .sf-wide { grid-column: 1 / -1; } }
-@media (min-width: 640px) { .sf-grid.sf-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.field-pair.sf-qty { grid-template-columns: minmax(0, 1fr) 96px; }
 .sf-box { overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
 .sf-box-pad { padding: 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
 .sf-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
@@ -86,21 +81,22 @@ const CSS = `
 .sf-more[open] > summary .icon { transform: rotate(180deg); }
 .sf-more[open] > summary { margin-bottom: 8px; }
 .sf-foot-left { margin-right: auto; }
-.sf-bar { position: sticky; z-index: 5; bottom: calc(var(--tabbar-h) + var(--safe-b) + 10px); grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; border: 1px solid var(--line-2); border-radius: var(--r-panel); background: var(--glass-surface); box-shadow: var(--shadow-pop); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
-.sf-bar-text { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; line-height: 1.3; }
+.form-bar.sf-bar { flex-wrap: nowrap; -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.sf-bar .form-bar-summary { display: flex; flex-direction: column; line-height: 1.3; }
 .sf-bar-main { overflow: hidden; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sf-bar-sub { overflow: hidden; color: var(--ink-2); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .sf-bar .btn { flex: none; }
-@media (min-width: 900px) { .sf-bar { bottom: 16px; } }
+.sf-add-item { width: 100%; border-style: dashed; }
 
 .ns-form { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.ns-form > .form-bar { grid-column: 1 / -1; }
 .ns-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .ns-side-save { display: none; }
 @media (min-width: 1100px) {
   .ns-form { grid-template-columns: minmax(0, 1fr) 340px; }
   .ns-side { position: sticky; top: 24px; }
   .ns-side-save { display: flex; flex-direction: column; gap: 8px; }
-  .ns-form > .sf-bar { display: none; }
+  .ns-form > .form-bar { display: none; }
 }
 
 .sales-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 150px); gap: 8px; align-items: center; }
@@ -145,6 +141,28 @@ export function useMedia(query) {
     return () => list.removeEventListener?.('change', update);
   }, [query]);
   return matches;
+}
+
+/** Publishes a sticky form bar's height as --formbar-h, so scrolling and toasts clear it. */
+export function useFormBarHeight(ref) {
+  useEffect(() => {
+    const bar = ref.current;
+    const root = typeof document !== 'undefined' ? document.documentElement : null;
+    if (!bar || !root) return undefined;
+    const publish = () => {
+      const visible = bar.offsetParent !== null;
+      root.style.setProperty('--formbar-h', visible ? `${Math.ceil(bar.offsetHeight + 8)}px` : '0px');
+    };
+    publish();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(publish) : null;
+    observer?.observe(bar);
+    window.addEventListener('resize', publish);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', publish);
+      root.style.removeProperty('--formbar-h');
+    };
+  });
 }
 
 /** A <details> disclosure: summary line (with an optional hint on the right) and its content. */
@@ -246,16 +264,18 @@ export function normaliseText(value) {
   return String(value ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
-/** 'Nike Dunk Low ×2, Stone Island jacket +1 more'. */
+/** 'Travis Scott Jordan 1 Low ×1 +2 more'. */
 export function itemsSummary(items) {
   const list = Array.isArray(items) ? items : [];
   if (list.length === 0) return 'No items yet';
-  const names = list.slice(0, 2).map((item) => {
-    const qty = num(item.qty);
-    return `${item.description || 'Item'}${qty > 1 ? ` ×${qty}` : ''}`;
-  });
-  const rest = list.length - names.length;
-  return rest > 0 ? `${names.join(', ')} +${rest} more` : names.join(', ');
+  const first = list[0];
+  const rest = list.length - 1;
+  return `${first.description || 'Item'} ×${num(first.qty) || 1}${rest > 0 ? ` +${rest} more` : ''}`;
+}
+
+/** Units across a sale's lines: 3 for two pairs and a jacket. */
+export function unitCount(items) {
+  return (Array.isArray(items) ? items : []).reduce((sum, item) => sum + Math.max(0, num(item.qty)), 0);
 }
 
 /** '5 Oct' for this year, '5 Oct 2025' otherwise. */
@@ -808,17 +828,17 @@ function QuickClient({ store, initialName, onCreated, onCancel }) {
     create();
   };
 
-  return html`<div class="stack sf-box-pad" ref=${boxRef} onKeyDown=${onKeyDown}>
-    <div class="sf-grid">
-      <${Field} label="Name" required error=${error} class="sf-wide">
+  return html`<div class="repeat-block" ref=${boxRef} onKeyDown=${onKeyDown}>
+    <div class="fields">
+      <${Field} label="Name" required error=${error}>
         <${Input} value=${name} autocomplete="off" autocapitalize="words" onInput=${(event) => setName(event.currentTarget.value)} />
       <//>
-      <${Field} label="Club" class="sf-wide">
+      <${Field} label="Club">
         <${Input} value=${club} autocomplete="off" autocapitalize="words" placeholder="e.g. Southampton" onInput=${(event) => setClub(event.currentTarget.value)} />
       <//>
     </div>
     <p class="sf-note">Add sizes, addresses and their agent later on their profile.</p>
-    <div class="row row-end">
+    <div class="form-actions">
       <${Button} kind="ghost" onClick=${onCancel} disabled=${saving}>Cancel<//>
       <${Button} kind="primary" icon="plus" loading=${saving} onClick=${create}>Add client<//>
     </div>
@@ -882,26 +902,30 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
   // Where it comes from: the price pairs with its cost, then who from and when.
   let sourceFields;
   if (draft.source === 'buy') {
-    sourceFields = html`<div class="sf-grid">
+    sourceFields = html`<div class="fields">
+      <div class="field-pair span-all">
       ${priceField}
       <${Field} label="Expected cost each" required error=${errors.expected_unit_cost}>
         <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.expected_unit_cost} onInput=${text('expected_unit_cost')} />
       <//>
+      </div>
       <${Field} label="Buying from" class="span-all" hint="Your best guess. Profit stays estimated until you mark it bought.">
         <${Input} autocomplete="off" placeholder="e.g. Nike app, StockX" value=${draft.supplier} onInput=${text('supplier')} />
       <//>
     </div>`;
   } else if (draft.source === 'bought') {
     const hint = draft.keepExpected ? varianceHint(row, row.qty) : null;
-    sourceFields = html`<div class="sf-grid">
+    sourceFields = html`<div class="fields">
+      <div class="field-pair span-all">
       ${priceField}
       <${Field} label="Paid each" required error=${errors.unit_cost} hint=${hint}>
         <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.unit_cost} onInput=${text('unit_cost')} />
       <//>
-      <${Field} label="Bought from" class="sf-wide">
+      </div>
+      <${Field} label="Bought from">
         <${Input} autocomplete="off" placeholder="e.g. Selfridges" value=${draft.supplier} onInput=${text('supplier')} />
       <//>
-      <${Field} label="Bought on" class="sf-wide">
+      <${Field} label="Bought on">
         <${Input} type="date" max=${today} value=${draft.sourced_at} onInput=${text('sourced_at')} />
       <//>
     </div>`;
@@ -945,7 +969,7 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
     <${Field} label="Description" required error=${errors.description}>
       <${Input} autocomplete="off" autocapitalize="words" placeholder="e.g. Nike Air Jordan 1 Chicago" value=${draft.description} onInput=${text('description')} />
     <//>
-    <div class="sf-grid sf-qty">
+    <div class="field-pair sf-qty">
       <${Field} label="Size">
         <${Input} autocomplete="off" placeholder="e.g. UK 9" value=${draft.size} onInput=${text('size')} />
       <//>
@@ -965,7 +989,7 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
     </div>
     ${sourceFields}
     <${Disclosure} title="Brand and SKU" hint=${extras || 'Optional'} open=${false}>
-      <div class="sf-grid">
+      <div class="field-pair">
         <${Field} label="Brand">
           <${Input} autocomplete="off" autocapitalize="words" value=${draft.brand} onInput=${text('brand')} />
         <//>
@@ -989,7 +1013,7 @@ export function CostFields({ draft, onChange, errors = {}, title, onRemove }) {
       <span class="sf-head-title">${title}</span>
       ${onRemove && html`<${Button} kind="ghost" size="sm" icon="trash" onClick=${onRemove} aria-label=${`Remove ${title}`}>Remove<//>`}
     </div>`}
-    <div class="sf-grid">
+    <div class="field-pair">
       <${Field} label="Type">
         <${Select} options=${COST_KIND_OPTIONS} value=${draft.kind} onChange=${(event) => onChange({ kind: event.currentTarget.value })} />
       <//>
@@ -1003,15 +1027,15 @@ export function CostFields({ draft, onChange, errors = {}, title, onRemove }) {
           onInput=${(event) => onChange({ amount: event.currentTarget.value })}
         />
       <//>
-      <${Field} label="What for" class="span-all">
-        <${Input}
-          autocomplete="off"
-          placeholder=${COST_PLACEHOLDERS[draft.kind] ?? ''}
-          value=${draft.label}
-          onInput=${(event) => onChange({ label: event.currentTarget.value })}
-        />
-      <//>
     </div>
+    <${Field} label="What for">
+      <${Input}
+        autocomplete="off"
+        placeholder=${COST_PLACEHOLDERS[draft.kind] ?? ''}
+        value=${draft.label}
+        onInput=${(event) => onChange({ label: event.currentTarget.value })}
+      />
+    <//>
     <${Switch}
       checked=${draft.is_expected}
       onChange=${(checked) => onChange({ is_expected: checked })}
@@ -1174,7 +1198,7 @@ function SaleRow({ row, navigate }) {
         ${deal.client?.club && html`<span class="muted truncate" style="font-weight:400">${deal.client.club}</span>`}
       </div>
       <div class="small muted truncate" style="max-width:340px;font-weight:400">
-        <span class="mono">${dealNumber(deal.number)}</span> · ${deal.client && deal.title ? `${deal.title} · ` : ''}${itemsSummary(deal.items)}
+        <span class="mono">${dealNumber(deal.number)}</span> · ${deal.client && deal.title ? `${deal.title} · ` : ''}${itemsSummary(deal.items)}${unitCount(deal.items) > 1 ? ` · ${unitCount(deal.items)} items` : ''}
       </div>
       ${toBuy > 0 && !cancelled && html`<span class="pill pill-warn">${toBuy} to buy</span>`}
     </td>
@@ -1205,12 +1229,14 @@ function SaleListRow({ row }) {
   const dueSoon = deal.due_date && OPEN_STATUSES.has(deal.status);
   const overdue = dueSoon && deal.due_date < todayISO();
   const owed = !cancelled && totals.balance > EPS && deal.status !== 'enquiry';
+  const units = unitCount(deal.items);
   return html`<a class="list-item sale-row" href=${`#/sales/${deal.id}`}>
     <div class="list-main">
       <div class="list-title">${deal.client?.name ?? deal.title ?? 'No client'}</div>
       <div class="list-sub"><span class="mono">${dealNumber(deal.number)}</span> · ${itemsSummary(deal.items)}</div>
       <div class="sale-row-meta">
         <span class="sale-dot" data-tone=${status.tone}>${status.label}</span>
+        ${units > 1 && html`<span>${units} items</span>`}
         ${!cancelled && totals.paymentStatus !== 'none' && html`<span class="sale-dot" data-tone=${payment.tone}>${payment.label}</span>`}
         ${toBuy > 0 && !cancelled && html`<span class="tone-warn">${toBuy} to buy</span>`}
         ${dueSoon && html`<span class=${overdue ? 'tone-loss' : undefined}>due ${relDays(deal.due_date)}</span>`}
@@ -1458,12 +1484,14 @@ function NewSale({ store, params, navigate }) {
   const [tripOpen, setTripOpen] = useState(false);
   const wide = useMedia('(min-width: 900px)');
   const formRef = useRef(null);
+  const barRef = useRef(null);
   const workRef = useRef(false); // unsaved work worth a "discard?" question
   const savedRef = useRef(false); // saved or deliberately discarded: leave freely
   const stockAppliedRef = useRef(false);
   const dismissWarningRef = useRef(null); // the "check the highlighted fields" toast, if showing
 
   const dirty = hasWork({ items, costs, trip, details, payment });
+  useFormBarHeight(barRef);
   workRef.current = dirty && !savedRef.current;
 
   useEffect(() => () => dismissWarningRef.current?.(), []);
@@ -1585,6 +1613,16 @@ function NewSale({ store, params, navigate }) {
     || hasProblems(problems.details) || Boolean(problems.payment) || Boolean(problems.noItems);
   const shownProblems = showErrors ? problems : { items: [], costs: [], details: {}, payment: null, noItems: null };
 
+  // A new line opens at its Description so a several-item order is quick to type.
+  const addItem = () => {
+    const line = blankItem();
+    setItems((list) => [...list, line]);
+    requestAnimationFrame(() => {
+      const box = formRef.current?.querySelector(`[data-item="${line.key}"]`);
+      box?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      box?.querySelector('input')?.focus({ preventScroll: true });
+    });
+  };
   const updateItem = (key, patch) => setItems((list) => list.map((item) => (item.key === key ? { ...item, ...patch } : item)));
   const updateCost = (key, patch) => setCosts((list) => list.map((cost) => (cost.key === key ? { ...cost, ...patch } : cost)));
   const setDetail = (key) => (event) => setDetails((current) => ({ ...current, [key]: event.currentTarget.value }));
@@ -1658,8 +1696,9 @@ function NewSale({ store, params, navigate }) {
     details.sale_date === todayISO() ? 'sold today' : details.sale_date && `sold ${saleDate(details.sale_date)}`,
     trimmed(details.title),
   ].filter(Boolean).join(' · ');
+  const units = itemRows.reduce((sum, row) => sum + (Number.isFinite(row.qty) && row.qty > 0 ? row.qty : 0), 0);
   const barSub = totals.revenue > EPS
-    ? `${money(totals.revenue)} sale${totals.margin !== null ? ` · ${pct(totals.margin)} margin` : ''}`
+    ? [units > 1 && plural(units, 'item'), `${money(totals.revenue)} sale`, totals.margin !== null && `${pct(totals.margin)} margin`].filter(Boolean).join(' · ')
     : 'Add a sale price to see the profit';
 
   return page(html`
@@ -1689,13 +1728,15 @@ function NewSale({ store, params, navigate }) {
           />
         <//>
 
-        <${Card} title=${items.length > 1 ? `Items · ${items.length}` : 'Items'}>
+        <${Card}
+          title="Items"
+          subtitle=${items.length > 1 ? `${items.length} items · ${money(totals.revenue)} sale · ${money(totals.netProfit)} profit` : null}
+        >
           <div class="stack">
-            ${items.map((item, index) => html`<div key=${item.key} class="stack">
-              ${index > 0 && html`<hr class="divider" />`}
+            ${items.map((item, index) => html`<div key=${item.key} class="repeat-block" data-item=${item.key}>
               <${ItemFields}
                 draft=${item}
-                title=${items.length > 1 ? `Item ${index + 1}` : null}
+                title=${`Item ${index + 1}`}
                 errors=${shownProblems.items[index]}
                 stockChoices=${choicesFor(item)}
                 maxQty=${maxQtyFor(item)}
@@ -1704,19 +1745,17 @@ function NewSale({ store, params, navigate }) {
               />
             </div>`)}
             ${shownProblems.noItems && html`<p class="field-error">${shownProblems.noItems}</p>`}
-            <div>
-              <${Button} icon="plus" onClick=${() => setItems((list) => [...list, blankItem()])}>Add another item<//>
-            </div>
+            <${Button} icon="plus" class="sf-add-item" onClick=${addItem}>Add another item<//>
           </div>
         <//>
 
         <${Card} title="Delivery">
           <div class="stack">
-            <div class="sf-grid">
-              <${Field} label="How it gets to them" class="sf-wide">
+            <div class="fields">
+              <${Field} label="How it gets to them">
                 <${Select} options=${DELIVERY_OPTIONS} value=${details.delivery_method} onChange=${setDetail('delivery_method')} />
               <//>
-              <${Field} label="Deliver by" error=${shownProblems.details.due_date} class="sf-wide">
+              <${Field} label="Deliver by" error=${shownProblems.details.due_date}>
                 <${Input} type="date" min=${details.sale_date || undefined} value=${details.due_date} onInput=${setDetail('due_date')} />
               <//>
             </div>
@@ -1742,8 +1781,7 @@ function NewSale({ store, params, navigate }) {
           ${costs.length === 0
             ? html`<p class="sf-note">Postage, fees, packaging — anything that isn't the item itself.</p>`
             : html`<div class="stack">
-                ${costs.map((cost, index) => html`<div key=${cost.key} class="stack">
-                  ${index > 0 && html`<hr class="divider" />`}
+                ${costs.map((cost, index) => html`<div key=${cost.key} class="repeat-block">
                   <${CostFields}
                     draft=${cost}
                     title=${`Cost ${index + 1}`}
@@ -1757,17 +1795,17 @@ function NewSale({ store, params, navigate }) {
 
         <${Card} title="Payment and details">
           <div class="stack">
-            <div class="sf-grid">
+            <div class="fields">
               <${Field}
                 label="Paid so far"
                 error=${shownProblems.payment}
                 hint="A deposit or full payment already received."
-                class=${paidAmount > 0 ? 'sf-wide' : 'span-all'}
+                class=${paidAmount > 0 ? undefined : 'span-all'}
               >
                 <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${payment.amount}
                   onInput=${(event) => setPayment((current) => ({ ...current, amount: event.currentTarget.value }))} />
               <//>
-              ${paidAmount > 0 && html`<${Field} label="Paid by" class="sf-wide">
+              ${paidAmount > 0 && html`<${Field} label="Paid by">
                 <${Select} options=${PAYMENT_METHOD_OPTIONS} value=${payment.method}
                   onChange=${(event) => setPayment((current) => ({ ...current, method: event.currentTarget.value }))} />
               <//>`}
@@ -1777,11 +1815,11 @@ function NewSale({ store, params, navigate }) {
               hint=${detailsHint}
               open=${showErrors && Boolean(problems.details.sale_date)}
             >
-              <div class="sf-grid">
-                <${Field} label="Status" class="sf-wide">
+              <div class="fields">
+                <${Field} label="Status">
                   <${Select} options=${statusOptions} value=${details.status} onChange=${setDetail('status')} />
                 <//>
-                <${Field} label="Sale date" required error=${shownProblems.details.sale_date} class="sf-wide">
+                <${Field} label="Sale date" required error=${shownProblems.details.sale_date}>
                   <${Input} type="date" value=${details.sale_date} onInput=${setDetail('sale_date')} />
                 <//>
                 <${Field} label="Title" hint="Optional — a name to spot this sale by." class="span-all">
@@ -1817,8 +1855,8 @@ function NewSale({ store, params, navigate }) {
         <//>
       </div>
 
-      <div class="sf-bar">
-        <div class="sf-bar-text">
+      <div class="form-bar sf-bar" ref=${barRef}>
+        <div class="form-bar-summary">
           <span class="sf-bar-main">
             Profit <${Money} value=${totals.netProfit} tone="auto" />${estimated && html` <span class="pill pill-warn">est.</span>`}
           </span>

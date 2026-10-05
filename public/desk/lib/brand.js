@@ -165,6 +165,11 @@ export function brandPalette(value) {
   return readable ? palette : null;
 }
 
+/** brandPalette(hex), or Desk's own colours when there is no usable brand colour. */
+export function paletteFor(value) {
+  return brandPalette(value) ?? DEFAULT_PALETTE;
+}
+
 // ---------------------------------------------------------------------------------------------
 // Brand data
 // ---------------------------------------------------------------------------------------------
@@ -460,6 +465,15 @@ export async function prepareLogo(file) {
 // ---------------------------------------------------------------------------------------------
 
 const CSS = `
+.brand-lockup { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand-lockup.has-logo { flex-direction: column; align-items: flex-start; gap: 6px; }
+.brand-lockup .brand-name { min-width: 0; overflow-wrap: anywhere; }
+.brand-lockup.has-logo .brand-name:empty { display: none; }
+.topbar-lead.brand-lead { width: auto; min-width: 40px; max-width: 112px; padding: 0 4px; }
+.topbar-icon { display: grid; flex: none; place-items: center; width: 40px; height: 40px; border-radius: var(--r-ctl); color: var(--ink-2); }
+.topbar-icon:hover { background: var(--hover); color: var(--ink); text-decoration: none; }
+.nav-kbd { margin-left: auto; padding: 0 6px; border: 1px solid var(--line-2); border-radius: 4px; color: var(--ink-3); font: 500 11px/18px var(--mono); }
+.auth-brand .brand-lockup.has-logo { align-items: center; width: 100%; text-align: center; }
 .brand-logo { display: block; flex: none; object-fit: contain; object-position: left center; }
 .brand-monogram { display: inline-grid; flex: none; place-items: center; width: var(--mono-size, 32px); height: var(--mono-size, 32px); border-radius: calc(var(--mono-size, 32px) * 0.28); background: var(--brand, var(--signal)); color: var(--brand-ink, var(--on-signal)); font-size: calc(var(--mono-size, 32px) * 0.4); font-weight: 600; letter-spacing: 0.02em; line-height: 1; user-select: none; }
 `;
@@ -519,4 +533,24 @@ export function Logo({ settings, brand: given, size = 32, maxWidth, compact = fa
     role="img"
     aria-label=${label}
   >${brand.monogram}</span>`;
+}
+
+/**
+ * BrandLockup({ brand, size = 32, sub = 'Desk' }) — the sidebar / sign-in identity: the logo
+ * with the business name under it, or the monogram beside the name, or Sizemill Desk.
+ */
+export function BrandLockup({ brand, size = 32, sub = 'Desk', logoMaxWidth = 176, class: classAttr }) {
+  injectStyles();
+  const b = brand ?? brandFromSettings(null);
+  const classes = (extra) => ['brand-lockup', extra, classAttr].filter(Boolean).join(' ');
+  if (b.logo) {
+    return html`<span class=${classes('has-logo')}>
+      <${Logo} brand=${b} size=${size + 8} maxWidth=${logoMaxWidth} />
+      <span class="brand-name">${b.name ?? ''}${b.name && html`<small>${sub}</small>`}</span>
+    </span>`;
+  }
+  return html`<span class=${classes()}>
+    <${Logo} brand=${b} size=${size} />
+    <span class="brand-name">${b.name ?? 'Sizemill'}<small>${sub}</small></span>
+  </span>`;
 }

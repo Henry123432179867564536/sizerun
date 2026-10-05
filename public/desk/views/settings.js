@@ -1,4 +1,5 @@
-// Settings (#/settings): home address, car, time and margin defaults (desk_settings), a plain
+// Settings (#/settings): your business (logo, name, brand colour), home address, car, time and
+// margin defaults (desk_settings), a plain
 // English "how profit is calculated" with a worked example that follows the form as you type,
 // data exports (a JSON backup of everything and a CSV of sales with their totals) and the
 // account.
@@ -13,6 +14,7 @@ import {
   Button,
   Card,
   ErrorState,
+  confirmDialog,
   Field,
   Input,
   Loading,
@@ -27,6 +29,7 @@ import {
 import { EPS, assessDeal, dealNumber, dealTotals, round2, tripTotals } from '../lib/calc.js';
 import { date, duration, miles, money, pct, plural, ppl, todayISO } from '../lib/format.js';
 import { DEFAULT_SETTINGS } from '../lib/store.js';
+import { BrandLockup, DEFAULT_BRAND, PRESETS, brandFromSettings, inkFor, normalizeHex, paletteFor, prepareLogo } from '../lib/brand.js';
 import AddressInput, { placeText } from '../components/address-input.js';
 import { FUEL_TYPE_OPTIONS } from '../components/trip-planner.js';
 
@@ -49,6 +52,35 @@ const CSS = `
 .settings-data-item p { color: var(--ink-2); font-size: 13px; }
 .settings-account { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
 .settings-account-who { display: flex; flex-direction: column; min-width: 0; }
+.bz { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.bz-logo { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 16px; min-width: 0; }
+.bz-logo-frame { display: grid; flex: none; place-items: center; width: 88px; height: 88px; padding: 10px; overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-panel); background-color: var(--surface-2); background-image: linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%), linear-gradient(45deg, var(--line) 25%, transparent 25%, transparent 75%, var(--line) 75%); background-position: 0 0, 6px 6px; background-size: 12px 12px; }
+.bz-logo-frame img { max-width: 100%; max-height: 100%; width: auto !important; height: auto !important; object-fit: contain; }
+.bz-logo-body { display: flex; flex: 1 1 180px; flex-direction: column; gap: 8px; min-width: 0; }
+.bz-logo-title { font-weight: 600; }
+.bz-logo-body p { margin: 0; color: var(--ink-2); font-size: 13px; }
+.bz-logo-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bz-logo-error { margin: 0; color: var(--loss); font-size: 13px; }
+.bz-colours { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.bz-swatch { position: relative; display: grid; flex: none; place-items: center; width: 40px; height: 40px; margin: 0; padding: 0; border: 0; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14); color: #FFFFFF; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.bz-swatch:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.bz-swatch[aria-pressed="true"], .bz-swatch.is-on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
+.bz-swatch-custom { background: conic-gradient(from 90deg, #E5484D, #F2C200, #30A46C, #0F6E74, #2F45C5, #8E4EC6, #E5484D); }
+.bz-swatch-custom.is-on { background: var(--sw); }
+.bz-swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+.bz-swatch-custom:focus-within { outline: 2px solid var(--ink); outline-offset: 3px; }
+.bz-hex { flex: 0 1 8.5rem; min-width: 7rem; }
+.bz-hex .input { font-family: var(--mono); text-transform: uppercase; }
+.bz-colour-field .field-hint + .field-hint { margin-top: 2px; }
+.bz-preview { --brand: var(--pv-brand-l); --brand-ink: var(--pv-ink-l); --brand-tint: var(--pv-tint-l); --brand-text: var(--pv-text-l); --pv-on: var(--pv-on-l); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--paper); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .bz-preview { --brand: var(--pv-brand-d); --brand-ink: var(--pv-ink-d); --brand-tint: var(--pv-tint-d); --brand-text: var(--pv-text-d); --pv-on: var(--pv-on-d); }
+}
+:root[data-theme="dark"] .bz-preview { --brand: var(--pv-brand-d); --brand-ink: var(--pv-ink-d); --brand-tint: var(--pv-tint-d); --brand-text: var(--pv-text-d); --pv-on: var(--pv-on-d); }
+.bz-preview-label { flex-basis: 100%; margin: 0 0 -4px; color: var(--ink-3); font-size: 12px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
+.bz-preview-ui { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bz-pv-btn { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--brand-text); color: var(--pv-on); font-size: 13px; font-weight: 500; }
+.bz-pv-pill { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--brand-tint); color: var(--brand-text); font-size: 13px; font-weight: 500; }
 @media (min-width: 640px) {
   .settings-data { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -116,7 +148,9 @@ function homeFromSettings(s) {
 function formFromSettings(settings) {
   const s = { ...DEFAULT_SETTINGS, ...(settings ?? {}) };
   return {
-    business_name: s.business_name ?? '',
+    // The store's placeholder name ('Sizemill') reads as "not set yet".
+    business_name: s.business_name && s.business_name !== DEFAULT_SETTINGS.business_name ? s.business_name : '',
+    brand_color: normalizeHex(s.brand_color) ?? '',
     home: homeFromSettings(s),
     home_label: s.home_label ?? '',
     mpg: numberText(s.mpg),
@@ -135,6 +169,7 @@ function validate(form) {
   const errors = {};
 
   if (form.business_name.trim().length > MAX_NAME_LENGTH) errors.business_name = `Keep it under ${MAX_NAME_LENGTH} characters.`;
+  if (form.brand_color.trim() && !normalizeHex(form.brand_color)) errors.brand_color = 'Use a colour like #1F4B85.';
   if (form.home_label.trim().length > MAX_HOME_LABEL_LENGTH) errors.home_label = `Keep it under ${MAX_HOME_LABEL_LENGTH} characters.`;
 
   const mpg = parseNumber(form.mpg);
@@ -175,6 +210,8 @@ function patchFromForm(form) {
   const located = Boolean(address) && hasCoords(form.home);
   return {
     business_name: form.business_name.trim() || null,
+    // Desk's own navy is the default, stored as "no brand colour".
+    brand_color: brandColor(form.brand_color),
     home_label: address ? form.home_label.trim() || null : null,
     home_address: address || null,
     home_lat: located ? Number(form.home.lat) : null,
@@ -187,6 +224,11 @@ function patchFromForm(form) {
     handover_minutes_default: parseNumber(form.handover_minutes_default) ?? 0,
     target_margin: (parseNumber(form.target_margin) ?? 0) / 100,
   };
+}
+
+function brandColor(text) {
+  const hex = normalizeHex(text);
+  return hex && hex !== DEFAULT_BRAND ? hex : null;
 }
 
 function sameForm(a, b) {
@@ -467,6 +509,182 @@ function AccountCard({ store, user }) {
   <//>`;
 }
 
+function previewVars(color) {
+  const p = paletteFor(color);
+  const vars = [];
+  for (const scheme of ['light', 'dark']) {
+    const k = scheme === 'light' ? 'l' : 'd';
+    vars.push(`--pv-brand-${k}:${p[scheme].brand}`, `--pv-ink-${k}:${p[scheme].ink}`, `--pv-tint-${k}:${p[scheme].tint}`, `--pv-text-${k}:${p[scheme].text}`);
+  }
+  // Text on a button filled with the text shade, as the app's primary buttons are.
+  vars.push(`--pv-on-l:${inkFor(p.light.text)}`, `--pv-on-d:${inkFor(p.dark.text, '#111418')}`);
+  return vars.join(';');
+}
+
+// "Your business": logo (uploaded straight away), name and brand colour (saved with the form).
+function BusinessCard({ store, settings, form, set, errorFor, touch }) {
+  const [busy, setBusy] = useState(null); // null | 'upload' | 'remove'
+  const [logoError, setLogoError] = useState(null);
+  const fileRef = useRef(null);
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
+
+  const hex = normalizeHex(form.brand_color);
+  const chosen = hex ?? (form.brand_color.trim() ? null : DEFAULT_BRAND);
+  const isPreset = PRESETS.some((preset) => preset.hex === chosen);
+  const brand = brandFromSettings({ business_name: form.business_name, logo_url: settings.logo_url, brand_color: hex });
+  const palette = paletteFor(hex);
+  const hasLogo = Boolean(brand.logo);
+
+  async function onFile(event) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = ''; // picking the same file again still fires change
+    if (!file || busy) return;
+    if (store.mode !== 'memory' && navigator.onLine === false) {
+      setLogoError("You're offline — connect to upload your logo.");
+      return;
+    }
+    setBusy('upload');
+    setLogoError(null);
+    try {
+      const logo = await prepareLogo(file);
+      await store.settings.uploadLogo(logo.blob, { width: logo.width, height: logo.height });
+      toast(hasLogo ? 'Logo replaced.' : 'Logo added.', { tone: 'gain' });
+    } catch (err) {
+      if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't upload your logo — try again.");
+    } finally {
+      if (mountedRef.current) setBusy(null);
+    }
+  }
+
+  async function remove() {
+    const ok = await confirmDialog({
+      title: 'Remove your logo?',
+      body: 'Desk will show your initials instead. You can upload a logo again any time.',
+      confirmLabel: 'Remove logo',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy('remove');
+    setLogoError(null);
+    try {
+      await store.settings.removeLogo();
+      toast('Logo removed.');
+    } catch (err) {
+      if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't remove your logo — try again.");
+    } finally {
+      if (mountedRef.current) setBusy(null);
+    }
+  }
+
+  const colourHint = palette.adjusted
+    ? 'Text and links use a deeper shade of it so they stay readable.'
+    : 'Used for buttons, links and your initials. Gains, losses and warnings keep their own colours.';
+
+  return html`<${Card} title="Your business" subtitle="Your logo, name and colour appear across Desk and on the sign-in screen.">
+    <div class="bz">
+      <div class="bz-logo">
+        <div class="bz-logo-frame">
+          ${hasLogo
+            ? html`<img src=${brand.logo.src} alt=${brand.name ? `${brand.name} logo` : 'Your logo'} />`
+            : html`<${BrandLockup} brand=${{ ...brand, logo: null }} size=${48} sub="" class="bz-logo-mono" />`}
+        </div>
+        <div class="bz-logo-body">
+          <span class="bz-logo-title">Logo</span>
+          <p>${hasLogo ? 'Shown in the sidebar, the top bar and on the sign-in screen.' : 'PNG, JPG or WebP — a photo from your camera roll works too. Desk resizes it for you.'}</p>
+          <input
+            ref=${fileRef}
+            class="sr-only"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            tabindex="-1"
+            aria-hidden="true"
+            onChange=${onFile}
+          />
+          <div class="bz-logo-actions">
+            <${Button}
+              size="sm"
+              icon=${hasLogo ? 'refresh' : 'plus'}
+              loading=${busy === 'upload'}
+              disabled=${busy === 'remove'}
+              onClick=${() => fileRef.current?.click()}
+            >${busy === 'upload' ? 'Uploading…' : hasLogo ? 'Replace' : 'Upload logo'}<//>
+            ${hasLogo && html`<${Button} size="sm" kind="ghost" icon="trash" loading=${busy === 'remove'} disabled=${busy === 'upload'} onClick=${remove}>Remove<//>`}
+          </div>
+          ${logoError && html`<p class="bz-logo-error" role="alert">${logoError}</p>`}
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <${Field} class="span-all" label="Business name" hint="Shown next to your logo and used to name your exports." error=${errorFor('business_name')}>
+          <${Input}
+            type="text"
+            autocomplete="organization"
+            autocapitalize="words"
+            placeholder="Your business name"
+            maxlength=${MAX_NAME_LENGTH + 20}
+            value=${form.business_name}
+            onInput=${(event) => set('business_name', event.currentTarget.value)}
+            onBlur=${touch('business_name')}
+          />
+        <//>
+      </div>
+
+      <${Field} class="bz-colour-field" label="Brand colour" hint=${colourHint} error=${errorFor('brand_color')}>
+        <div class="bz-colours" role="group" aria-label="Brand colour">
+          ${PRESETS.map((preset) => html`<button
+            key=${preset.hex}
+            type="button"
+            class="bz-swatch"
+            style=${`--sw:${preset.hex}`}
+            aria-pressed=${chosen === preset.hex ? 'true' : 'false'}
+            aria-label=${`${preset.name}${preset.hex === DEFAULT_BRAND ? ' (Desk default)' : ''}`}
+            title=${preset.name}
+            onClick=${() => set('brand_color', preset.hex === DEFAULT_BRAND ? '' : preset.hex)}
+          ></button>`)}
+          <label class=${`bz-swatch bz-swatch-custom${hex && !isPreset ? ' is-on' : ''}`} style=${hex && !isPreset ? `--sw:${hex}` : undefined} title="Custom colour">
+            <span class="sr-only">Custom colour</span>
+            <input
+              type="color"
+              value=${(hex ?? DEFAULT_BRAND).toLowerCase()}
+              onInput=${(event) => set('brand_color', event.currentTarget.value.toUpperCase())}
+            />
+          </label>
+          <div class="bz-hex">
+            <${Input}
+              type="text"
+              placeholder=${DEFAULT_BRAND}
+              autocomplete="off"
+              autocapitalize="characters"
+              autocorrect="off"
+              spellcheck=${false}
+              maxlength="7"
+              value=${form.brand_color}
+              onInput=${(event) => set('brand_color', event.currentTarget.value)}
+              onBlur=${(event) => {
+                const clean = normalizeHex(event.currentTarget.value);
+                if (clean) set('brand_color', clean === DEFAULT_BRAND ? '' : clean);
+                touch('brand_color')();
+              }}
+            />
+          </div>
+        </div>
+      <//>
+
+      <div class="bz-preview" style=${previewVars(hex)} aria-hidden="true">
+        <p class="bz-preview-label">Preview</p>
+        <${BrandLockup} brand=${brand} />
+        <div class="bz-preview-ui">
+          <span class="bz-pv-btn">New sale</span>
+          <span class="bz-pv-pill">Dashboard</span>
+        </div>
+      </div>
+    </div>
+  <//>`;
+}
+
 // ---- view --------------------------------------------------------------------------------
 
 export default function SettingsView({ store, user }) {
@@ -556,13 +774,15 @@ export default function SettingsView({ store, user }) {
       ? 'Not saved yet — check the defaults and save.'
       : `All changes saved${settings.updated_at ? ` · ${date(settings.updated_at)}` : ''}.`;
 
-  return html`<${Page} title="Settings" subtitle="Your home, car and rates — used to cost every drive and judge every deal.">
+  return html`<${Page} title="Settings" subtitle="Your business, home, car and rates — used across Desk to cost every drive and judge every deal.">
     ${firstRun && html`<${Banner} tone="signal" icon="map-pin" title="Welcome to Desk — start here">
       Add your home address, your car's mpg and fuel type, and what your time is worth. Desk uses
       them to work out the miles, fuel and time behind every drop-off. You can change them any time.
     <//>`}
 
     <form class="settings-form" ref=${formRef} onSubmit=${onSubmit} noValidate=${true}>
+      <${BusinessCard} store=${store} settings=${settings} form=${form} set=${set} errorFor=${errorFor} touch=${touch} />
+
       <${Card} title="Drives" subtitle="Where drives start and the car you drive.">
         <div class="form-grid">
           <${Field} class="span-all" label="Home address" hint=${homeHint(form.home)}>
@@ -611,14 +831,6 @@ export default function SettingsView({ store, user }) {
           <//>
           <${Field} label="Target margin" hint="Profit as a share of the sale price. Deals under it are flagged as tight." error=${errorFor('target_margin')}>
             <${Input} type="text" inputmode="numeric" suffix="%" autocomplete="off" placeholder="0" ...${textProps('target_margin')} />
-          <//>
-        </div>
-      <//>
-
-      <${Card} title="Business">
-        <div class="form-grid">
-          <${Field} label="Business name" hint="Used to name your exports." error=${errorFor('business_name')}>
-            <${Input} type="text" autocomplete="organization" placeholder=${DEFAULT_SETTINGS.business_name} ...${textProps('business_name')} />
           <//>
         </div>
       <//>

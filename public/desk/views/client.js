@@ -131,6 +131,14 @@ const CSS = `
 }
 .cl-hint-line { margin-top: 10px; }
 .cl-profile-stats .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-profile-stats .cl-stat-hero { grid-column: 1 / -1; }
+.cl-profile-stats .cl-stat-hero .stat-value { font-size: 28px; }
+.cl-est { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--warn-tint); color: var(--warn); font-size: 11.5px; font-weight: 600; letter-spacing: 0; vertical-align: 0.25em; }
+@media (min-width: 900px) {
+  .cl-profile-stats { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cl-profile-stats .cl-stat-hero { grid-column: auto; }
+  .cl-profile-stats .cl-stat-hero .stat-value { font-size: 24px; }
+}
 .cl-sale-sub { font-weight: 400; }
 .cl-sale-badge { margin-top: 4px; }
 @media (min-width: 640px) {
@@ -873,50 +881,59 @@ function ProfileHero({ client, onEdit }) {
   <//>`;
 }
 
+/** '£1,240.00' with a small "est." when some of the orders behind it are still estimated. */
+function estValue(amount, estimated) {
+  return estimated ? html`${money(amount)}<span class="cl-est" title="Some costs are still expected">est.</span>` : money(amount);
+}
+
+// What the client is worth: lifetime profit up front, then orders, profit per order, revenue
+// and what they owe. An order is one sale, which may hold several items.
 function ProfileStats({ stats, target }) {
   const hasSales = stats.count > 0;
+  const estimated = stats.estimatedCount > 0;
   const pending = Math.abs(stats.pendingProfit) > EPS;
-  let profitSub = 'No sales yet';
+  const belowTarget = stats.margin !== null && target > 0 && stats.margin < target;
+  let profitSub = 'No orders yet';
   if (hasSales) {
-    profitSub = pending ? `${money(stats.pendingProfit)} pending` : 'All realised';
-    if (stats.estimatedCount > 0) profitSub += ' · est.';
+    profitSub = [
+      stats.margin !== null && `${pct(stats.margin)} margin${belowTarget ? ` · under ${pct(target)} target` : ''}`,
+      pending && `${money(stats.pendingProfit)} still pending`,
+    ].filter(Boolean).join(' · ') || 'All realised';
   }
   let owedSub = hasSales ? 'All paid up' : '—';
   if (stats.owed > EPS) {
     owedSub = stats.dueNow > EPS && stats.dueNow < stats.owed - EPS
-      ? `${money(stats.dueNow)} delivered`
-      : stats.dueNow > EPS ? 'On delivered sales' : 'Not handed over yet';
+      ? `${money(stats.dueNow)} on delivered orders`
+      : stats.dueNow > EPS ? 'On delivered orders' : 'Not handed over yet';
   }
-  const belowTarget = stats.margin !== null && target > 0 && stats.margin < target;
-  const salesSub = !hasSales ? 'No sales yet' : [plural(stats.count, 'sale'), stats.open > 0 && `${stats.open} open`].filter(Boolean).join(' · ');
+  const ordersSub = !hasSales ? 'None yet' : [stats.open > 0 && `${stats.open} open`, stats.lastSale && `last ${relDays(stats.lastSale)}`].filter(Boolean).join(' · ');
 
   return html`<div class="kpis cl-profile-stats">
     <${Stat}
-      label="Profit"
-      value=${money(stats.netProfit)}
+      class="cl-stat-hero"
+      label="Lifetime profit"
+      value=${hasSales ? estValue(stats.netProfit, estimated) : money(0)}
       tone=${!hasSales ? undefined : stats.netProfit < -EPS ? 'loss' : 'gain'}
       sub=${profitSub}
     />
-    <${Stat} label="Owed" value=${money(stats.owed)} tone=${stats.owed > EPS ? 'warn' : undefined} sub=${owedSub} />
-    <${Stat} label="Revenue" value=${money(stats.revenue)} sub=${salesSub} />
+    <${Stat} label="Orders" value=${String(stats.count)} sub=${ordersSub || 'All delivered'} />
     <${Stat}
-      label="Avg margin"
-      value=${pct(stats.margin)}
-      tone=${belowTarget ? 'warn' : undefined}
-      sub=${target > 0 ? `Target ${pct(target)}` : 'Profit ÷ revenue'}
+      label="Avg profit per order"
+      value=${stats.avgProfit === null ? '—' : estValue(stats.avgProfit, estimated)}
+      tone=${stats.avgProfit !== null && stats.avgProfit < -EPS ? 'loss' : undefined}
+      sub=${hasSales ? `${plural(stats.items, 'item')} across ${plural(stats.count, 'order')}` : 'Profit ÷ orders'}
     />
+    <${Stat} label="Lifetime revenue" value=${money(stats.revenue)} sub=${hasSales ? 'Excluding cancelled' : '—'} />
+    <${Stat} label="Owed" value=${money(stats.owed)} tone=${stats.owed > EPS ? 'warn' : undefined} sub=${owedSub} />
   </div>`;
 }
 
+/** 'Travis Scott Jordan 1 Low ×1, +2 more' — the first item and how many others. */
 function itemsSummary(items) {
-  const list = Array.isArray(items) ? items : [];
+  const list = (Array.isArray(items) ? items : []).filter(Boolean);
   if (list.length === 0) return 'No items yet';
-  const names = list.slice(0, 2).map((item) => {
-    const qty = Number(item.qty) || 0;
-    return `${clean(item.description) || 'Item'}${qty > 1 ? ` ×${qty}` : ''}`;
-  });
-  const rest = list.length - names.length;
-  return rest > 0 ? `${names.join(', ')} +${rest} more` : names.join(', ');
+  const first = `${clean(list[0].description) || 'Item'} ×${Number(list[0].qty) || 1}`;
+  return list.length > 1 ? `${first}, +${list.length - 1} more` : first;
 }
 
 function SaleListRow({ deal }) {
@@ -925,15 +942,14 @@ function SaleListRow({ deal }) {
   const payment = paymentMeta[totals.paymentStatus] ?? paymentMeta.none;
   const cancelled = deal.status === 'cancelled';
   const toBuy = (deal.items ?? []).filter((item) => item.cost_status !== 'actual').length;
-  const meta = [status.label, !cancelled && totals.paymentStatus !== 'none' && payment.label].filter(Boolean).join(' · ');
+  const state = [status.label, !cancelled && totals.paymentStatus !== 'none' && payment.label].filter(Boolean).join(', ');
   return html`<${ListRow}
     href=${`#/sales/${deal.id}`}
-    title=${`${clean(deal.title) || itemsSummary(deal.items)}`}
+    title=${itemsSummary(deal.items)}
     badge=${toBuy > 0 && !cancelled && html`<span class="pill pill-warn">${toBuy} to buy</span>`}
-    subtitle=${`${dealNumber(deal.number)} · ${saleDateText(deal.sale_date)}`}
+    subtitle=${`${saleDateText(deal.sale_date)} · ${dealNumber(deal.number)} · ${state}`}
     amount=${html`<${Money} value=${totals.netProfit} tone=${cancelled ? 'muted' : 'auto'} />${totals.certainty === 'estimated' && !cancelled ? html`<span class="tone-warn small"> est.</span>` : ''}`}
-    meta=${meta}
-    metaTone=${!cancelled && totals.paymentStatus === 'unpaid' && deal.status !== 'enquiry' ? 'warn' : undefined}
+    meta=${`${money(totals.revenue)} revenue`}
   />`;
 }
 
@@ -941,14 +957,14 @@ function SalesCard({ client, deals, navigate }) {
   const phone = usePhone();
   const live = deals.filter((deal) => deal.status !== 'cancelled').length;
   const cancelled = deals.length - live;
-  const subtitle = deals.length === 0 ? null : [plural(live, 'sale'), cancelled > 0 && `${cancelled} cancelled`].filter(Boolean).join(' · ');
+  const subtitle = deals.length === 0 ? null : [plural(live, 'order'), cancelled > 0 && `${cancelled} cancelled`].filter(Boolean).join(' · ');
   const newSale = html`<${Button} size="sm" icon="plus" onClick=${() => startSale(client, navigate)}>New sale<//>`;
 
-  return html`<${Card} pad=${false} title="Sales" subtitle=${subtitle} actions=${deals.length > 0 ? newSale : null}>
+  return html`<${Card} pad=${false} title="Orders" subtitle=${subtitle} actions=${deals.length > 0 ? newSale : null}>
     ${deals.length === 0
       ? html`<${Empty}
           icon="tag"
-          title="No sales yet"
+          title="No orders yet"
           body=${`Log a sale for ${firstName(client.name)} as soon as it's agreed — even before you've bought the item.`}
           action=${html`<${Button} kind="primary" icon="plus" onClick=${() => startSale(client, navigate)}>New sale for ${firstName(client.name)}<//>`}
         />`
@@ -958,7 +974,7 @@ function SalesCard({ client, deals, navigate }) {
           <table class="table">
             <thead>
               <tr>
-                <th scope="col">Sale</th>
+                <th scope="col">Order</th>
                 <th scope="col">Status</th>
                 <th scope="col" class="num">Revenue</th>
                 <th scope="col" class="num">Profit</th>
@@ -983,10 +999,9 @@ function SaleRow({ deal, navigate }) {
   const toBuy = (deal.items ?? []).filter((item) => item.cost_status !== 'actual').length;
   return html`<tr class="is-clickable" onClick=${() => navigate(href)}>
     <td class="cell-primary">
-      <a href=${href} class="mono" onClick=${(event) => event.stopPropagation()}>${dealNumber(deal.number)}</a>
-      <span class="small faint nowrap cl-sale-sub"> · ${saleDateText(deal.sale_date)}</span>
-      <div class="small muted cl-clamp cl-sale-sub">
-        ${clean(deal.title) ? `${deal.title.trim()} · ` : ''}${itemsSummary(deal.items)}
+      <div class="cl-clamp">${itemsSummary(deal.items)}</div>
+      <div class="small muted cl-sale-sub">
+        ${saleDateText(deal.sale_date)} · <a href=${href} class="mono" onClick=${(event) => event.stopPropagation()}>${dealNumber(deal.number)}</a>${clean(deal.title) ? ` · ${deal.title.trim()}` : ''}
       </div>
       ${toBuy > 0 && !cancelled && html`<span class="pill pill-warn">${toBuy} to buy</span>`}
     </td>
@@ -998,8 +1013,8 @@ function SaleRow({ deal, navigate }) {
       ${!cancelled && totals.paymentStatus === 'part' && html`<div class="tiny faint">${money(totals.balance)} due</div>`}
     </td>
     <td data-label="Revenue" class="num"><${Money} value=${totals.revenue} tone=${cancelled ? 'muted' : undefined} /></td>
-    <td data-label="Profit" class="num">
-      <${Money} value=${totals.netProfit} tone=${cancelled ? 'muted' : 'auto'} />
+    <td data-label="Profit" class="num cell-key">
+      <${Money} value=${totals.netProfit} tone=${cancelled ? 'muted' : 'auto'} class="strong" />
       ${totals.certainty === 'estimated' && !cancelled && html` <span class="pill pill-warn" title="Some costs are still expected">est.</span>`}
     </td>
   </tr>`;

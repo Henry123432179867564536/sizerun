@@ -22,9 +22,10 @@ import {
   toast,
   useStoreData,
 } from './lib/ui.js';
+import { BrandLockup, Logo, applyBrand, brandFromSettings, cacheBrand, pageTitle, readCachedBrand } from './lib/brand.js';
 
 const APP_NAME = 'Sizemill Desk';
-const HOME_LABEL = `${APP_NAME} — dashboard`;
+const homeLabel = (brand) => `${brand?.title ?? APP_NAME} — dashboard`;
 const SETUP_BANNER_KEY = 'sizemill.desk.setupBannerDismissed';
 const MIN_PASSWORD_LENGTH = 8;
 const GENERIC_ERROR = 'Something went wrong — please try again.';
@@ -50,6 +51,7 @@ const ROUTES = [
   { name: 'trips', pattern: '/trips', view: 'trips', title: 'Trips', section: 'trips' },
   { name: 'check', pattern: '/check', view: 'calculator', title: 'Deal checker', section: 'check' },
   { name: 'settings', pattern: '/settings', view: 'settings', title: 'Settings', section: 'settings' },
+  { name: 'search', pattern: '/search', view: 'search', title: 'Search', section: 'search' },
 ].map((route) => Object.freeze({ ...route, segments: splitPath(route.pattern) }));
 
 const HOME_ROUTE = ROUTES[0];
@@ -359,16 +361,20 @@ function currentFor(item, route) {
   return toHash(route.path) === item.href ? 'page' : 'true';
 }
 
-function Sidebar({ route, user, local, onSignOut }) {
+const SEARCH_LINK = { section: 'search', href: '#/search', label: 'Search', icon: 'search' };
+
+function Sidebar({ route, user, local, brand, onSignOut }) {
   const link = (item) => html`<a key=${item.href} class="nav-link" href=${item.href} aria-current=${currentFor(item, route)}>
     <${Icon} name=${item.icon} size=${18} /><span>${item.label}</span>
   </a>`;
   return html`<aside class="sidebar">
-    <a class="brand" href="#/" aria-label=${HOME_LABEL}>
-      <span class="brand-mark" aria-hidden="true"></span>
-      <span class="brand-name">Sizemill<small>Desk</small></span>
+    <a class="brand" href="#/" aria-label=${homeLabel(brand)}>
+      <${BrandLockup} brand=${brand} />
     </a>
     <${Button} kind="primary" href=${NEW_SALE.href} icon="plus" block>New sale<//>
+    <a class="nav-link" href=${SEARCH_LINK.href} aria-current=${currentFor(SEARCH_LINK, route)} aria-keyshortcuts="/">
+      <${Icon} name="search" size=${18} /><span>Search</span><kbd class="nav-kbd" aria-hidden="true">/</kbd>
+    </a>
     <nav class="nav" aria-label="Main">
       ${NAV_MAIN.map(link)}
       <div class="nav-label">Tools</div>
@@ -385,7 +391,7 @@ function Sidebar({ route, user, local, onSignOut }) {
   </aside>`;
 }
 
-function TopBar({ route, header, local }) {
+function TopBar({ route, header, local, brand }) {
   const page = useChannel(header);
   const title = page?.title || route.title;
   const back = page?.back ?? null;
@@ -395,19 +401,20 @@ function TopBar({ route, header, local }) {
     : null;
 
   useEffect(() => {
-    document.title = `${title} · ${APP_NAME}`;
-  }, [title]);
+    document.title = pageTitle(title);
+  }, [title, brand?.title]);
 
   return html`<header class="topbar">
     ${back
       ? html`<a class="topbar-lead" href=${back.href} aria-label=${`Back to ${back.label}`}>
           <${Icon} name="chevron-left" size=${24} />
         </a>`
-      : html`<a class="topbar-lead" href="#/" aria-label=${HOME_LABEL}>
-          <span class="brand-mark" aria-hidden="true"></span>
+      : html`<a class="topbar-lead brand-lead" href="#/" aria-label=${homeLabel(brand)}>
+          <${Logo} brand=${brand} size=${28} maxWidth=${104} compact />
         </a>`}
     <div class="topbar-title" aria-hidden="true">${title}</div>
     ${local && html`<${Badge} tone="warn">Local<//>`}
+    ${route.name !== 'search' && html`<a class="topbar-icon" href="#/search" aria-label="Search"><${Icon} name="search" size=${22} /></a>`}
     ${action && html`<${Button} kind="primary" size="sm" href=${action.href} icon=${action.icon}>${action.label}<//>`}
   </header>`;
 }
@@ -481,6 +488,29 @@ function Shell({ store, user }) {
 
   const shell = useMemo(() => ({ setHeader: header.set, labelFor, navigate }), [header, navigate]);
 
+  // The business's brand: from the cache until settings load, then live (useStoreData reloads
+  // after every save, so a new logo or colour shows everywhere without a reload).
+  const { data: settings } = useStoreData(store, (s) => s.settings.get());
+  const brand = useMemo(() => brandFromSettings(settings ?? readCachedBrand()), [settings]);
+  useEffect(() => {
+    if (!settings) return;
+    applyBrand(settings);
+    cacheBrand(settings);
+  }, [settings]);
+
+  // '/' opens Search from anywhere except while typing.
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof Element && target.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="dialog"]')) return;
+      event.preventDefault();
+      navigate('#/search');
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [navigate]);
+
   // Unknown addresses show the dashboard; make the address bar agree.
   useEffect(() => {
     if (route.redirect) navigate('#/', { replace: true });
@@ -510,8 +540,8 @@ function Shell({ store, user }) {
   return html`<${ShellContext.Provider} value=${shell}>
     <div class="shell">
       <button type="button" class="skip-link" onClick=${() => mainRef.current?.focus()}>Skip to content</button>
-      <${Sidebar} route=${route} user=${user} local=${local} onSignOut=${signOut} />
-      <${TopBar} route=${route} header=${header} local=${local} />
+      <${Sidebar} route=${route} user=${user} local=${local} brand=${brand} onSignOut=${signOut} />
+      <${TopBar} route=${route} header=${header} local=${local} brand=${brand} />
       <main id="main" class="main" tabindex="-1" ref=${mainRef}>
         ${!online && html`<${Banner} tone="warn" icon="offline" title="You're offline">
           ${local ? 'Routes and live fuel prices need a connection.' : "Changes won't save until you're back online."}
@@ -580,9 +610,11 @@ function AuthGate({ store, notice }) {
   const formRef = useRef(null);
   const mountedRef = useRef(true);
   const copy = AUTH_COPY[mode];
+  // The last business that used Desk on this device, so its owner sees their own brand.
+  const brand = useMemo(() => brandFromSettings(readCachedBrand()), []);
 
   useEffect(() => {
-    document.title = `${copy.title} · ${APP_NAME}`;
+    document.title = pageTitle(copy.title);
   }, [copy.title]);
 
   useEffect(() => {
@@ -643,8 +675,7 @@ function AuthGate({ store, notice }) {
   return html`<main class="auth">
     <div class="auth-card">
       <div class="auth-brand">
-        <span class="brand-mark" aria-hidden="true"></span>
-        <span class="brand-name">Sizemill<small>Desk</small></span>
+        <${BrandLockup} brand=${brand} size=${40} logoMaxWidth=${240} />
       </div>
       <h1 class="auth-title">${copy.title}</h1>
       <p class="auth-sub">${copy.sub}</p>
@@ -735,11 +766,36 @@ function takeAuthRedirectError() {
   const query = search.toString();
   window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}#/`);
 
-  if (code === 'otp_expired' || /expired|invalid/i.test(description ?? '')) {
-    return 'That sign-in link has expired or was already used — request a new one below.';
-  }
-  const text = (description ?? '').trim();
-  return text ? (/[.!?]$/.test(text) ? text : `${text}.`) : 'Signing in from that link failed — please try again.';
+  // Only our own sentences: the URL's description is attacker-controlled text, never shown.
+  if (code === 'otp_expired' || /expired|invalid/i.test(description ?? '')) return LINK_EXPIRED;
+  return 'Signing in from that link failed — please try again.';
+}
+
+const LINK_EXPIRED = 'That sign-in link has expired or was already used — request a new one below.';
+
+/**
+ * Desk signs in with PKCE (store.js), so an '#access_token=…' link is never ours: it could
+ * only swap in someone else's session. Drop it before supabase-js sees it.
+ */
+function dropImplicitGrant() {
+  const fragment = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  if (!fragment.has('access_token') && !fragment.has('refresh_token')) return false;
+  window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/`);
+  return true;
+}
+
+/**
+ * supabase-js exchanges '?code=' itself (and removes it) when this browser asked for the link.
+ * A code still there means the link was opened somewhere else, e.g. Safari instead of the
+ * installed app: tidy the address and say what to do.
+ */
+function takeLeftoverCode(store) {
+  const search = new URLSearchParams(window.location.search);
+  if (!search.has('code')) return null;
+  search.delete('code');
+  const query = search.toString();
+  window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash || '#/'}`);
+  return store.auth.user() ? null : 'That link only works in the browser you asked for it from — open it there, or sign in here.';
 }
 
 // Last line of defence: a failed save nobody caught still tells the user what happened.
@@ -755,8 +811,11 @@ async function boot() {
   const root = document.getElementById('app');
   window.addEventListener('unhandledrejection', reportUnhandledRejection);
 
-  const authNotice = takeAuthRedirectError();
+  const redirectError = takeAuthRedirectError();
+  const droppedLink = dropImplicitGrant();
   const local = new URLSearchParams(window.location.search).get('local') === '1';
+  // Paint the last known brand straight away (sign-in screen, first frame of the shell).
+  applyBrand(readCachedBrand());
 
   let store;
   try {
@@ -770,6 +829,8 @@ async function boot() {
     return;
   }
 
+  const leftoverCode = local ? null : takeLeftoverCode(store);
+  const authNotice = redirectError ?? leftoverCode ?? (droppedLink && !store.auth.user() ? LINK_EXPIRED : null);
   root.textContent = '';
   render(html`<${App} store=${store} authNotice=${authNotice} />`, root);
 }

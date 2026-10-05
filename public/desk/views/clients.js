@@ -24,7 +24,7 @@ import {
   cx,
   useStoreData,
 } from '../lib/ui.js';
-import { EPS, dealTotals, summarise } from '../lib/calc.js';
+import { EPS, dealTotals, num, summarise } from '../lib/calc.js';
 import { date as formatDate, dateShort, money, plural, relDays, todayISO } from '../lib/format.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -158,7 +158,9 @@ export function dealsByClient(deals) {
  * unpaid part of sales already handed over (`owed` also counts agreed sales not yet delivered).
  * `owed` leaves out enquiries, which owe nothing yet — the same rule as the dashboard and the
  * Sales "Unpaid" tab. `margin` is profit ÷ revenue across all live sales (null with no
- * revenue), like a deal's own.
+ * revenue), like a deal's own. An order is one deal (it may hold several items): `count` is
+ * the orders that aren't cancelled, `items` the units on them, and `avgProfit` lifetime
+ * profit ÷ orders (null with none).
  */
 export function clientStats(deals) {
   const list = Array.isArray(deals) ? deals : [];
@@ -172,6 +174,8 @@ export function clientStats(deals) {
     cancelled: 0,
     estimatedCount: 0,
     dueNow: 0,
+    items: 0,
+    avgProfit: summary.count > 0 ? summary.netProfit / summary.count : null,
   };
   for (const deal of list) {
     if (deal.status === 'cancelled') {
@@ -180,6 +184,7 @@ export function clientStats(deals) {
     }
     const totals = dealTotals(deal);
     if (totals.certainty === 'estimated') stats.estimatedCount += 1;
+    for (const item of Array.isArray(deal.items) ? deal.items : []) if (item) stats.items += num(item.qty);
     if (OPEN_STATUSES.has(deal.status)) stats.open += 1;
     if (HANDED_OVER.has(deal.status) && totals.balance > EPS) stats.dueNow += totals.balance;
     if (typeof deal.sale_date === 'string' && (!stats.lastSale || deal.sale_date > stats.lastSale)) {
@@ -337,21 +342,19 @@ function ClientRow({ row, navigate }) {
         </div>
       </div>
     </td>
-    <td data-label="Sizes">${sizes || null}</td>
-    <td data-label="Revenue" class="num">
-      ${hasSales
-        ? html`<${Money} value=${stats.revenue} /><div class="tiny faint">${plural(stats.count, 'sale')}</div>`
-        : html`<span class="faint">No sales yet</span>`}
-    </td>
-    <td data-label="Profit" class="num">
-      ${hasSales && html`<${Money} value=${stats.netProfit} tone="auto" />`}
-      ${hasSales && stats.estimatedCount > 0 && html` <span class="pill pill-warn" title="Some costs are still expected">est.</span>`}
-    </td>
-    <td data-label="Owed" class="num">${stats.owed > EPS ? html`<${Money} value=${stats.owed} tone="warn" />` : null}</td>
-    <td data-label="Last sale">
+    <td data-label="Sizes" class="cell-low">${sizes || null}</td>
+    <td data-label="Last order" class="cell-low">
       ${stats.lastSale
         ? html`<span class="nowrap">${saleDateText(stats.lastSale)}</span><div class="tiny faint">${relDays(stats.lastSale)}</div>`
         : null}
+    </td>
+    <td data-label="Orders" class="num">${hasSales ? String(stats.count) : html`<span class="faint">—</span>`}</td>
+    <td data-label="Revenue" class="num">${hasSales ? html`<${Money} value=${stats.revenue} />` : null}</td>
+    <td data-label="Owed" class="num">${stats.owed > EPS ? html`<${Money} value=${stats.owed} tone="warn" />` : null}</td>
+    <td data-label="Lifetime profit" class="num cell-key">
+      ${hasSales
+        ? html`<${Money} value=${stats.netProfit} tone="auto" class="strong" />${stats.estimatedCount > 0 && html` <span class="pill pill-warn" title="Some costs are still expected">est.</span>`}`
+        : html`<span class="faint">No orders yet</span>`}
     </td>
   </tr>`;
 }
@@ -362,16 +365,16 @@ function ClientListRow({ row }) {
   const { client, stats } = row;
   const hasSales = stats.count > 0;
   const owes = stats.owed > EPS;
-  let meta = 'No sales yet';
+  let meta = 'No orders yet';
   if (owes) meta = `${money(stats.owed, { pence: false })} owed`;
-  else if (stats.lastSale) meta = `Last sale ${saleDateText(stats.lastSale)}`;
+  else if (hasSales) meta = plural(stats.count, 'order');
   return html`<${ListRow}
     href=${`#/clients/${client.id}`}
     leading=${html`<${Avatar} name=${client.name} />`}
     title=${client.name}
     badge=${client.archived && html`<${Badge} tone="muted" dot=${false}>Archived<//>`}
     subtitle=${clientLine(client) || sizesLine(client) || 'No club saved'}
-    amount=${hasSales ? html`<${Money} value=${stats.netProfit} tone="auto" />${stats.estimatedCount > 0 ? html`<span class="tone-warn small"> est.</span>` : ''}` : null}
+    amount=${hasSales ? html`<${Money} value=${stats.netProfit} tone="auto" />${stats.estimatedCount > 0 ? html`<span class="tone-warn small"> est.</span>` : ''}` : html`<span class="faint">—</span>`}
     meta=${meta}
     metaTone=${owes ? 'warn' : undefined}
   />`;
@@ -508,10 +511,11 @@ export default function ClientsView({ store, params, navigate }) {
                 <tr>
                   <th scope="col">Client</th>
                   <th scope="col">Sizes</th>
+                  <th scope="col">Last order</th>
+                  <th scope="col" class="num">Orders</th>
                   <th scope="col" class="num">Revenue</th>
-                  <th scope="col" class="num">Profit</th>
                   <th scope="col" class="num">Owed</th>
-                  <th scope="col">Last sale</th>
+                  <th scope="col" class="num">Lifetime profit</th>
                 </tr>
               </thead>
               <tbody>
