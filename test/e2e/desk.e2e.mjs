@@ -391,10 +391,11 @@ async function saleStep(page, pass, problems) {
 }
 
 async function dashboardPendingStep(page, pass, problems) {
-  step(`dashboard: ${SALE.pending} pending, 1 item to buy`);
+  // Not paid yet, so it isn't pending: its profit shows as "more on unpaid orders" under Total.
+  step(`dashboard: unpaid sale (${SALE.pending}) outside pending, 1 item to buy`);
   await go(page, '#/');
-  await waitForText(stat(page, 'Profit pending').value, SALE.pending, { what: 'pending profit' });
-  await waitForText(stat(page, 'Profit pending').sub, /1 item to buy/, { what: 'items to buy' });
+  await waitForText(stat(page, 'Profit pending').value, '£0', { what: 'pending profit (unpaid sale)' });
+  await waitForText(stat(page, 'Total profit').sub, new RegExp(`${SALE.pending} more on 1 unpaid order`), { what: 'unpaid profit under Total' });
   await waitForText(stat(page, 'Profit realised').value, '£0', { what: 'realised profit' });
   await waitForText(page.locator('.dash-group', { hasText: 'to buy' }), new RegExp(ITEM.description), { what: 'Needs you: to buy' });
   await shoot(page, pass, 'dashboard', problems);
@@ -463,6 +464,7 @@ async function paidAndDeliveredStep(page, pass, problems) {
   const realised = await waitForText(stat(page, 'Profit realised').value, /^£\d+$/, { what: 'realised profit' });
   check(Math.abs(parseMoney(realised) - parseMoney(profit)) <= 0.5, `dashboard realised ${realised} should match the sale's ${profit}`);
   await waitForText(stat(page, 'Profit pending').value, '£0', { what: 'pending after delivery' });
+  await waitForText(stat(page, 'Total profit').value, realised, { what: 'total = realised + pending' });
   await waitForText(stat(page, '£ per driving hour').value, moneyPattern, { what: 'dashboard £ per driving hour' });
   await shoot(page, pass, 'dashboard-realised', problems);
   return parseMoney(profit);

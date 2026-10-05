@@ -45,6 +45,10 @@ const CSS = `
 .dash-kpis .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dash-key { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .dash-key .stat-value { font-size: 26px; }
+.dash-key .dash-total { grid-column: 1 / -1; }
+.dash-key .dash-total .stat-value { font-size: 32px; }
+.stat-muted .stat-value { color: var(--ink-2); }
+.dash-key .dash-total .stat-sub { white-space: normal; }
 .dash-kpis2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .dash-kpis2 .stat { padding: 10px 12px; }
 .dash-kpis2 .stat-value { font-size: 18px; }
@@ -104,7 +108,7 @@ const REALISED_STATUSES = new Set(['delivered', 'completed']);
 
 const CHART_SERIES = [
   { key: 'realised', label: 'Realised', color: 'var(--gain)' },
-  { key: 'pending', label: 'Pending', color: 'var(--warn)' },
+  { key: 'pending', label: 'Pending', color: 'var(--ink-3)' },
 ];
 
 const MS_PER_DAY = 86_400_000;
@@ -305,10 +309,13 @@ function buildDashboard({ deals, stock, clients }, period, today) {
 
   const kpis = {
     realised: summary.realisedProfit,
-    realisedCount: inPeriod.filter((row) => row.totals.bucket === 'realised').length,
+    realisedCount: summary.realisedCount,
     pending: summary.pendingProfit,
-    pendingCount: inPeriod.filter((row) => row.totals.bucket === 'pending').length,
-    pendingEstimated: inPeriod.some((row) => row.totals.bucket === 'pending' && row.totals.certainty === 'estimated'),
+    pendingCount: summary.pendingCount,
+    pendingEstimated: inPeriod.some((row) => row.totals.bucket === 'pending' && row.totals.paymentStatus === 'paid' && row.totals.certainty === 'estimated'),
+    unpaid: summary.unpaidProfit,
+    unpaidCount: summary.unpaidCount,
+    total: summary.totalProfit,
     toSource: summary.toSource,
     revenue: summary.revenue,
     count: summary.count,
@@ -400,13 +407,22 @@ async function loadDashboard(store) {
 // ---- sections ----------------------------------------------------------------------------
 
 function Kpis({ kpis }) {
-  const pendingSub = kpis.toSource > 0
-    ? `${plural(kpis.toSource, 'item')} to buy${kpis.pendingEstimated ? ' · est.' : ''}`
-    : kpis.pendingEstimated
-      ? 'Estimated'
-      : kpis.pendingCount ? `${plural(kpis.pendingCount, 'sale')} in progress` : 'Nothing in progress';
+  const pendingSub = kpis.pendingCount
+    ? `${plural(kpis.pendingCount, 'paid sale')}${kpis.pendingEstimated ? ' · est.' : ''}`
+    : 'No paid sales in progress';
+  const totalSub = Math.abs(kpis.unpaid) > EPS
+    ? `Realised + pending · ${wholePounds(kpis.unpaid)} more on ${plural(kpis.unpaidCount, 'unpaid order')}`
+    : 'Realised + pending';
 
   return html`<div class="kpis dash-kpis dash-key">
+    <${Stat}
+      class="dash-total"
+      label="Total profit"
+      value=${wholePounds(kpis.total)}
+      sub=${totalSub}
+      tone=${kpis.total < -EPS ? 'loss' : undefined}
+      href="#/sales"
+    />
     <${Stat}
       label="Profit realised"
       value=${wholePounds(kpis.realised)}
@@ -418,8 +434,8 @@ function Kpis({ kpis }) {
       label="Profit pending"
       value=${wholePounds(kpis.pending)}
       sub=${pendingSub}
-      tone=${kpis.pending < -EPS ? 'loss' : 'warn'}
-      href=${kpis.toSource > 0 ? '#/sales?tab=tobuy' : '#/sales?tab=pending'}
+      tone=${kpis.pending < -EPS ? 'loss' : 'muted'}
+      href="#/sales?tab=pending"
     />
   </div>`;
 }

@@ -263,7 +263,14 @@ export function summarise(dealsWithChildren, range = {}) {
     count: 0,
     revenue: 0,
     realisedProfit: 0,
+    realisedCount: 0,
+    // Pending = paid in full but not finished (still sourcing, not delivered, or a cost still
+    // estimated). Sales the client hasn't paid for yet are kept apart as unpaid.
     pendingProfit: 0,
+    pendingCount: 0,
+    unpaidProfit: 0,
+    unpaidCount: 0,
+    totalProfit: 0, // realised + pending: what you'll have once the paid-for sales are done
     netProfit: 0,
     owed: 0,
     toSource: 0,
@@ -284,11 +291,20 @@ export function summarise(dealsWithChildren, range = {}) {
 
     const t = dealTotals(deal, deal);
     const realised = t.bucket === 'realised';
+    const pending = !realised && t.paymentStatus === 'paid';
     summary.count += 1;
     summary.revenue += t.revenue;
     summary.netProfit += t.netProfit;
-    if (realised) summary.realisedProfit += t.netProfit;
-    else summary.pendingProfit += t.netProfit;
+    if (realised) {
+      summary.realisedProfit += t.netProfit;
+      summary.realisedCount += 1;
+    } else if (pending) {
+      summary.pendingProfit += t.netProfit;
+      summary.pendingCount += 1;
+    } else {
+      summary.unpaidProfit += t.netProfit;
+      summary.unpaidCount += 1;
+    }
     if (t.balance > EPS) summary.owed += t.balance;
     summary.toSource += rows(deal.items).filter((item) => !isActual(item)).length;
     summary.drivingMinutes += t.drivingMinutes;
@@ -304,10 +320,11 @@ export function summarise(dealsWithChildren, range = {}) {
       }
       month.revenue += t.revenue;
       if (realised) month.realised += t.netProfit;
-      else month.pending += t.netProfit;
+      else if (pending) month.pending += t.netProfit;
     }
   }
 
+  summary.totalProfit = summary.realisedProfit + summary.pendingProfit;
   summary.perDrivingHour = ratio(drivenProfit, summary.drivingMinutes / 60);
   summary.byMonth = [...months.values()]
     .sort((a, b) => (a.month < b.month ? -1 : a.month > b.month ? 1 : 0))
