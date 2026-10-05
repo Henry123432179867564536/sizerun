@@ -892,6 +892,27 @@ hr {
   animation: fade-in 0.3s 0.4s both;
 }
 
+/* index.html swaps the mark for the cached brand: a logo, or the name's initial on the colour. */
+.boot-logo {
+  display: block;
+  max-width: 168px;
+  max-height: 48px;
+  object-fit: contain;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.boot-mono {
+  display: inline-grid;
+  place-items: center;
+  color: var(--paper);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.boot-mono::after {
+  content: none;
+}
+
 .boot-failed {
   display: none;
 }
@@ -902,7 +923,8 @@ hr {
 
 .boot[data-state="failed"] .boot-loading { display: none; }
 .boot[data-state="failed"] .boot-failed { display: block; }
-.boot[data-state="failed"] .boot-mark { animation: none; }
+.boot[data-state="failed"] .boot-mark,
+.boot[data-state="failed"] .boot-logo { animation: none; }
 
 .fatal {
   display: grid;
@@ -2807,6 +2829,12 @@ html.is-typing {
   html.is-typing .tabbar {
     display: none;
   }
+}
+
+/* Just after the tab bar comes back (ui.js waits for the finger to lift first), it ignores
+   taps for a moment so it can never catch the end of a gesture meant for a Save button. */
+html.is-settling .tabbar {
+  pointer-events: none;
 }
 
 /* A sticky save bar for page forms: <div class="form-bar">summary … <button></div>.

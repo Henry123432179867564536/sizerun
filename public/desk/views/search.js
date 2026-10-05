@@ -494,8 +494,9 @@ export default function SearchView({ store, params = {} }) {
     }
   }, [query]);
 
-  // Desktop: put the cursor in the box. Phones only get a keyboard when the search button
-  // opened this page (the shell handles that through the autofocus attribute).
+  // Desktop (fine pointer): put the cursor in the box. Touch devices get no automatic focus
+  // (and no native autofocus attribute), so the keyboard never pops up over the results on
+  // load — one tap on the box brings it up.
   useEffect(() => {
     if (isCoarsePointer()) return;
     const input = rootRef.current?.querySelector('input');
@@ -552,7 +553,6 @@ export default function SearchView({ store, params = {} }) {
           onInput=${setText}
           placeholder="Client, item, size or SM number"
           label="Search clients, items and sales"
-          autofocus=${true}
         />
       </form>
 

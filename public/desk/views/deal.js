@@ -269,10 +269,8 @@ export function waLink(phone, text) {
 }
 
 function ContactCard({ deal, client, totals }) {
-  const id = deal.id;
-  const receipt = html`<${Button} kind="ghost" size="sm" icon="external" href=${`#/sales/${id}/receipt`}>Receipt<//>`;
   if (!client) {
-    return html`<${Card} title="Client" actions=${receipt}>
+    return html`<${Card} title="Client">
       <p class="sd-reason">No client on this sale. Use Edit details to add one and message them from here.</p>
     <//>`;
   }
@@ -303,7 +301,6 @@ function ContactCard({ deal, client, totals }) {
   return html`<${Card}
     title=${html`<a href=${`#/clients/${client.id}`}>${client.name}</a>`}
     subtitle=${sub || null}
-    actions=${receipt}
   >${body}<//>`;
 }
 

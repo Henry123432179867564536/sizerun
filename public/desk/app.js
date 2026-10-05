@@ -22,7 +22,7 @@ import {
   toast,
   useStoreData,
 } from './lib/ui.js';
-import { BrandLockup, Logo, applyBrand, brandFromSettings, cacheBrand, pageTitle, readCachedBrand } from './lib/brand.js';
+import { BrandLockup, Logo, applyBrand, brandCacheKey, brandFromSettings, cacheBrand, pageTitle, readCachedBrand } from './lib/brand.js';
 
 const APP_NAME = 'Sizemill Desk';
 const homeLabel = (brand) => `${brand?.title ?? APP_NAME} — dashboard`;
@@ -491,12 +491,13 @@ function Shell({ store, user }) {
   // The business's brand: from the cache until settings load, then live (useStoreData reloads
   // after every save, so a new logo or colour shows everywhere without a reload).
   const { data: settings } = useStoreData(store, (s) => s.settings.get());
-  const brand = useMemo(() => brandFromSettings(settings ?? readCachedBrand()), [settings]);
+  const brandKey = brandCacheKey(local);
+  const brand = useMemo(() => brandFromSettings(settings ?? readCachedBrand(undefined, brandKey)), [settings, brandKey]);
   useEffect(() => {
     if (!settings) return;
     applyBrand(settings);
-    cacheBrand(settings);
-  }, [settings]);
+    cacheBrand(settings, undefined, brandKey);
+  }, [settings, brandKey]);
 
   // '/' opens Search from anywhere except while typing.
   useEffect(() => {
@@ -814,8 +815,9 @@ async function boot() {
   const redirectError = takeAuthRedirectError();
   const droppedLink = dropImplicitGrant();
   const local = new URLSearchParams(window.location.search).get('local') === '1';
-  // Paint the last known brand straight away (sign-in screen, first frame of the shell).
-  applyBrand(readCachedBrand());
+  // Paint the last known brand straight away (sign-in screen, first frame of the shell). Local
+  // mode has its own cache so it never overwrites the account's.
+  applyBrand(readCachedBrand(undefined, brandCacheKey(local)));
 
   let store;
   try {

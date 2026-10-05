@@ -17,6 +17,14 @@
 import { html, useState } from './preact.js';
 
 export const BRAND_CACHE_KEY = 'sizemill.desk.brand';
+// Local (?local=1) mode keeps its own cache, so trying Desk out never replaces the real
+// account's brand on the sign-in and boot screens.
+export const LOCAL_BRAND_CACHE_KEY = 'sizemill.desk.brand.local';
+
+/** The cache key for a mode: the local one for ?local=1, else the account's. */
+export function brandCacheKey(local = false) {
+  return local ? LOCAL_BRAND_CACHE_KEY : BRAND_CACHE_KEY;
+}
 export const DEFAULT_BRAND = '#1F4B85'; // desk.css --signal (light)
 export const APP_NAME = 'Sizemill Desk';
 // The store's default business_name: shown as "not set" rather than as the owner's brand.
@@ -312,22 +320,22 @@ function defaultStorage() {
 }
 
 /** Remembers { name, logo_url, brand_color } so the sign-in screen can show it. Never throws. */
-export function cacheBrand(settings, storage = defaultStorage()) {
+export function cacheBrand(settings, storage = defaultStorage(), key = BRAND_CACHE_KEY) {
   if (!storage) return;
   const brand = brandFromSettings(settings);
   try {
     if (!brand.name && !brand.logo && !brand.color) {
-      storage.removeItem(BRAND_CACHE_KEY);
+      storage.removeItem(key);
       return;
     }
     const entry = { v: 1, name: brand.name, logo_url: brand.logo ? settings.logo_url : null, brand_color: brand.color };
     const json = JSON.stringify(entry);
-    if (storage.getItem(BRAND_CACHE_KEY) === json) return;
+    if (storage.getItem(key) === json) return;
     try {
-      storage.setItem(BRAND_CACHE_KEY, json);
+      storage.setItem(key, json);
     } catch {
       // A big local-mode logo may not fit twice: keep the name and colour at least.
-      storage.setItem(BRAND_CACHE_KEY, JSON.stringify({ ...entry, logo_url: null }));
+      storage.setItem(key, JSON.stringify({ ...entry, logo_url: null }));
     }
   } catch {
     // Storage blocked or full: the sign-in screen simply shows Sizemill Desk.
@@ -335,9 +343,9 @@ export function cacheBrand(settings, storage = defaultStorage()) {
 }
 
 /** The cached brand as { name, logo_url, brand_color }, or null. Never throws. */
-export function readCachedBrand(storage = defaultStorage()) {
+export function readCachedBrand(storage = defaultStorage(), key = BRAND_CACHE_KEY) {
   try {
-    const raw = storage?.getItem(BRAND_CACHE_KEY);
+    const raw = storage?.getItem(key);
     if (!raw) return null;
     const entry = JSON.parse(raw);
     if (!entry || typeof entry !== 'object') return null;
@@ -349,9 +357,9 @@ export function readCachedBrand(storage = defaultStorage()) {
   }
 }
 
-export function clearCachedBrand(storage = defaultStorage()) {
+export function clearCachedBrand(storage = defaultStorage(), key = BRAND_CACHE_KEY) {
   try {
-    storage?.removeItem(BRAND_CACHE_KEY);
+    storage?.removeItem(key);
   } catch {
     // nothing to clear
   }

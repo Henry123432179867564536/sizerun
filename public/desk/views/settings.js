@@ -30,7 +30,7 @@ import { EPS, assessDeal, dealNumber, dealTotals, round2, tripTotals } from '../
 import { date, duration, miles, money, pct, plural, ppl, todayISO } from '../lib/format.js';
 import { DEFAULT_SETTINGS } from '../lib/store.js';
 import {
-  BrandLockup, DEFAULT_BRAND, Logo, PRESETS, applyBrand, brandFromSettings, cacheBrand, inkFor, normalizeHex, paletteFor, prepareLogo,
+  BrandLockup, DEFAULT_BRAND, Logo, PRESETS, applyBrand, brandCacheKey, brandFromSettings, cacheBrand, inkFor, normalizeHex, paletteFor, prepareLogo,
 } from '../lib/brand.js';
 import AddressInput, { placeText } from '../components/address-input.js';
 import { FUEL_TYPE_OPTIONS } from '../components/trip-planner.js';
@@ -517,9 +517,9 @@ function AccountCard({ store, user }) {
 }
 
 // The shell picks up saved settings on its next reload; show the new brand right away.
-function showBrand(settings) {
+function showBrand(settings, store) {
   applyBrand(settings);
-  cacheBrand(settings);
+  cacheBrand(settings, undefined, brandCacheKey(store?.mode === 'memory'));
 }
 
 function previewVars(color) {
@@ -563,7 +563,7 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
     setLogoError(null);
     try {
       const logo = await prepareLogo(file);
-      showBrand(await store.settings.uploadLogo(logo.blob, { width: logo.width, height: logo.height, tone: logo.tone }));
+      showBrand(await store.settings.uploadLogo(logo.blob, { width: logo.width, height: logo.height, tone: logo.tone }), store);
       toast(hasLogo ? 'Logo replaced.' : 'Logo added.', { tone: 'gain' });
     } catch (err) {
       if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't upload your logo — try again.");
@@ -583,7 +583,7 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
     setBusy('remove');
     setLogoError(null);
     try {
-      showBrand(await store.settings.removeLogo());
+      showBrand(await store.settings.removeLogo(), store);
       toast('Logo removed.');
     } catch (err) {
       if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't remove your logo — try again.");
@@ -767,7 +767,7 @@ export default function SettingsView({ store, user }) {
     setSaving(true);
     try {
       const saved = await store.settings.save(patchFromForm(form));
-      showBrand(saved);
+      showBrand(saved, store);
       if (!mountedRef.current) return;
       const next = formFromSettings(saved);
       setForm(next);

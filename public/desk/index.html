@@ -53,5 +53,27 @@
     <noscript><p>Desk needs JavaScript turned on.</p></noscript>
   </div>
 </div>
+<script>
+  // Boot in the business's own brand (lib/brand.js caches it; ?local=1 has its own key), so
+  // the Sizemill mark never flashes before a custom logo, colour or name.
+  try {
+    var bk = /[?&]local=1(&|$)/.test(location.search) ? 'sizemill.desk.brand.local' : 'sizemill.desk.brand';
+    var bb = JSON.parse(localStorage.getItem(bk) || 'null') || {};
+    var bm = document.querySelector('.boot-mark');
+    var bn = typeof bb.name === 'string' ? bb.name.trim() : '';
+    var bl = typeof bb.logo_url === 'string' ? bb.logo_url.split('#')[0] : '';
+    if (/^#[0-9a-f]{6}$/i.test(bb.brand_color || '')) {
+      var bh = parseInt(bb.brand_color.slice(1), 16);
+      bm.style.background = bb.brand_color;
+      bm.style.color = 0.299 * (bh >> 16) + 0.587 * ((bh >> 8) & 255) + 0.114 * (bh & 255) > 150 ? '#111418' : '#fff';
+    }
+    if (/^(https:\/\/|data:image\/(png|jpeg|webp);base64,)/i.test(bl)) {
+      var bi = new Image(); bi.className = 'boot-logo'; bi.alt = ''; bi.src = bl; bm.replaceWith(bi);
+    } else if (bn) {
+      bm.textContent = bn.charAt(0).toUpperCase(); bm.classList.add('boot-mono');
+    }
+    if (bn) { document.title = bn; document.querySelector('.boot-loading').textContent = 'Loading ' + bn + '\u2026'; }
+  } catch (e) { /* no cache, or storage blocked: the default boot screen stays */ }
+</script>
 </body>
 </html>

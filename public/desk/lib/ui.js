@@ -84,22 +84,98 @@ export function isCoarsePointer() {
     && window.matchMedia('(pointer: coarse)').matches;
 }
 
+// Tap safety: restoring the tab bar (or dropping the keyboard offsets) moves sticky bars by the
+// tab bar's height. If that happens between a finger going down and the tap's click, the click
+// lands on whatever slid under the finger — typically a .tabbar-link — and the tap on Save (or
+// a colour swatch) is lost. So layout-moving restores wait until no pointer is down and the
+// last release's click has fired, then a frame; and for a moment after the tab bar comes back
+// it ignores taps (html.is-settling) so it can never swallow an in-flight gesture.
+const SETTLE_MS = 320;
+
 function installViewportTracking() {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
   if (window.__deskViewportTracking) return;
   window.__deskViewportTracking = true;
   const root = document.documentElement;
+  const pointers = new Set();
+  let lastRelease = 0;
+  let waiting = [];
+  let waitTimer = 0;
   let blurTimer = 0;
+  let settleTimer = 0;
 
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const busy = () => pointers.size > 0 || now() - lastRelease < SETTLE_MS;
+  const flush = () => {
+    waitTimer = 0;
+    if (pointers.size) return; // the release handler flushes again
+    const left = SETTLE_MS - (now() - lastRelease);
+    if (left > 0) {
+      waitTimer = window.setTimeout(flush, left);
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      if (busy()) {
+        if (!waitTimer && !pointers.size) waitTimer = window.setTimeout(flush, 16);
+        return;
+      }
+      const run = waiting;
+      waiting = [];
+      run.forEach((fn) => fn());
+    });
+  };
+  /** Runs fn once no gesture is in flight (immediately when the screen is idle). */
+  const whenSettled = (key, fn) => {
+    waiting = waiting.filter((entry) => entry.key !== key);
+    const entry = () => fn();
+    entry.key = key;
+    if (!busy() && !waiting.length) {
+      fn();
+      return;
+    }
+    waiting.push(entry);
+    if (!waitTimer && !pointers.size) flush();
+  };
+  const cancelSettled = (key) => {
+    waiting = waiting.filter((entry) => entry.key !== key);
+  };
+
+  document.addEventListener('pointerdown', (event) => {
+    pointers.add(event.pointerId);
+  }, true);
+  const release = (event) => {
+    pointers.delete(event.pointerId);
+    lastRelease = now();
+    if (!pointers.size && waiting.length && !waitTimer) flush();
+  };
+  window.addEventListener('pointerup', release, true);
+  window.addEventListener('pointercancel', release, true);
+  window.addEventListener('blur', () => {
+    pointers.clear();
+  });
+
+  const showTabbar = () => {
+    if (isTextControl(document.activeElement)) return;
+    root.classList.add('is-settling');
+    root.classList.remove('is-typing');
+    window.clearTimeout(settleTimer);
+    settleTimer = window.setTimeout(() => root.classList.remove('is-settling'), SETTLE_MS);
+  };
   const onFocusIn = (event) => {
     window.clearTimeout(blurTimer);
-    root.classList.toggle('is-typing', isTextControl(event.target));
+    const typing = isTextControl(event.target);
+    if (typing) {
+      cancelSettled('tabbar');
+      root.classList.add('is-typing');
+    } else if (root.classList.contains('is-typing')) {
+      whenSettled('tabbar', showTabbar);
+    }
   };
   const onFocusOut = () => {
     // Moving focus between two fields fires focusout then focusin; don't flash the tab bar.
     window.clearTimeout(blurTimer);
     blurTimer = window.setTimeout(() => {
-      if (!isTextControl(document.activeElement)) root.classList.remove('is-typing');
+      if (!isTextControl(document.activeElement)) whenSettled('tabbar', showTabbar);
     }, 120);
   };
   document.addEventListener('focusin', onFocusIn);
@@ -108,13 +184,20 @@ function installViewportTracking() {
   const vv = window.visualViewport;
   if (!vv) return;
   let frame = 0;
+  const clearKeyboard = () => {
+    root.classList.remove('is-keyboard');
+    root.style.removeProperty('--vvh');
+    root.style.removeProperty('--vvt');
+    root.style.removeProperty('--kb');
+  };
   const update = () => {
     frame = 0;
     const covered = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
     // Ignore pinch-zoom and small browser-chrome changes; only a keyboard covers this much.
     const keyboard = covered > 120 && vv.scale <= 1.01;
-    root.classList.toggle('is-keyboard', keyboard);
     if (keyboard) {
+      cancelSettled('keyboard');
+      root.classList.add('is-keyboard');
       root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
       root.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`);
       root.style.setProperty('--kb', `${covered}px`);
@@ -123,10 +206,9 @@ function installViewportTracking() {
       if (active instanceof HTMLElement && active.closest('.modal-body')) {
         active.scrollIntoView({ block: 'nearest' });
       }
-    } else {
-      root.style.removeProperty('--vvh');
-      root.style.removeProperty('--vvt');
-      root.style.removeProperty('--kb');
+    } else if (root.classList.contains('is-keyboard')) {
+      // A sheet drops back down when the keyboard closes: not under a finger mid-tap.
+      whenSettled('keyboard', clearKeyboard);
     }
   };
   const schedule = () => {
