@@ -171,7 +171,10 @@ function createChannel(initial) {
 function sameHeader(a, b) {
   if (a === b) return true;
   if (!a || !b) return false;
-  return a.title === b.title && a.back?.href === b.back?.href && a.back?.label === b.back?.label;
+  return a.title === b.title
+    && a.back?.href === b.back?.href
+    && a.back?.label === b.back?.label
+    && a.actionHrefs === b.actionHrefs;
 }
 
 function useChannel(channel) {
@@ -250,7 +253,10 @@ function ViewProblem({ error, title, onRetry, retryLabel, showHome }) {
   <//>`;
 }
 
-// Keeps a crashing view from blanking the whole app.
+// Keeps a crashing view from blanking the whole app. The view and the error card sit in
+// differently keyed wrappers: when a view throws while updating, Preact can leave its old DOM
+// behind, and swapping the wrapper removes that whole subtree. A change of address (resetKey)
+// gives the view another go.
 class ViewBoundary extends Component {
   constructor(props) {
     super(props);
@@ -262,15 +268,21 @@ class ViewBoundary extends Component {
     this.setState({ error });
   }
 
+  componentDidUpdate(previous) {
+    if (this.state.error && previous.resetKey !== this.props.resetKey) this.setState({ error: null });
+  }
+
   render({ children, showHome }, { error }) {
-    if (!error) return children;
-    return html`<${ViewProblem}
-      error=${error}
-      title="Something went wrong on this page"
-      onRetry=${() => this.setState({ error: null })}
-      retryLabel="Try again"
-      showHome=${showHome}
-    />`;
+    if (!error) return html`<div key="view" class="view-body">${children}</div>`;
+    return html`<div key="error" class="view-body">
+      <${ViewProblem}
+        error=${error}
+        title="Something went wrong on this page"
+        onRetry=${() => this.setState({ error: null })}
+        retryLabel="Try again"
+        showHome=${showHome}
+      />
+    </div>`;
   }
 }
 
@@ -303,7 +315,7 @@ function ViewHost({ route, store, navigate, user }) {
   if (!state.View) return html`<${Loading} />`;
   const View = state.View;
   return html`<div class="view">
-    <${ViewBoundary} showHome=${showHome}>
+    <${ViewBoundary} showHome=${showHome} resetKey=${JSON.stringify(route.params)}>
       <${View} store=${store} params=${route.params} route=${route} navigate=${navigate} user=${user} />
     <//>
   </div>`;
@@ -377,6 +389,10 @@ function TopBar({ route, header, local }) {
   const page = useChannel(header);
   const title = page?.title || route.title;
   const back = page?.back ?? null;
+  // Skip the route's action when the page already offers the same link.
+  const action = route.action && !(page?.actionHrefs ?? '').split(' ').includes(route.action.href)
+    ? route.action
+    : null;
 
   useEffect(() => {
     document.title = `${title} · ${APP_NAME}`;
@@ -392,9 +408,7 @@ function TopBar({ route, header, local }) {
         </a>`}
     <div class="topbar-title" aria-hidden="true">${title}</div>
     ${local && html`<${Badge} tone="warn">Local<//>`}
-    ${route.action && html`<${Button} kind="primary" size="sm" href=${route.action.href} icon=${route.action.icon}>
-      ${route.action.label}
-    <//>`}
+    ${action && html`<${Button} kind="primary" size="sm" href=${action.href} icon=${action.icon}>${action.label}<//>`}
   </header>`;
 }
 

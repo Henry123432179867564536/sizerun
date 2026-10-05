@@ -155,7 +155,10 @@ function paymentStatusFor(revenue, paid) {
 
 function bucketFor(status, certainty, paymentStatus) {
   if (status === 'cancelled') return 'cancelled';
-  if (certainty === 'confirmed' && paymentStatus === 'paid' && REALISED_STATUSES.has(status)) {
+  // 'none' is a £0 sale (a freebie or goodwill item): nothing is owed, so once delivered with
+  // every cost confirmed it is as realised as a paid one.
+  const settled = paymentStatus === 'paid' || paymentStatus === 'none';
+  if (certainty === 'confirmed' && settled && REALISED_STATUSES.has(status)) {
     return 'realised';
   }
   return 'pending';

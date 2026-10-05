@@ -576,8 +576,9 @@ describe('dealTotals', () => {
       assert.equal(dealTotals(deal, { items: [actualItem(100, 50)], payments: [{ amount: 50 }] }).bucket, 'pending');
     });
 
-    test('zero-revenue completed deal stays pending (payment status none)', () => {
-      assert.equal(dealTotals({ status: 'completed' }, { items: [actualItem(0, 20)] }).bucket, 'pending');
+    test('zero-revenue (free) deal realises once delivered with confirmed costs', () => {
+      assert.equal(dealTotals({ status: 'completed' }, { items: [actualItem(0, 20)] }).bucket, 'realised');
+      assert.equal(dealTotals({ status: 'agreed' }, { items: [actualItem(0, 20)] }).bucket, 'pending');
     });
 
     test('cancelled wins over everything', () => {

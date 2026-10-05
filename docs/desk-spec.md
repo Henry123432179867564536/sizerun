@@ -30,7 +30,7 @@ This file is the contract between everyone building Desk. Names below are exact.
   `sb_publishable_u1ywcwe7Wqb9s6Z55VskIQ_pepm1rYk` (public by design; RLS protects data).
   Same origin as the old app, so a session signed in there is already signed in here.
 - Tests: Node's built-in runner, `node --test test/`. No npm dependencies. Root `package.json`
-  is `{ "name": "sizemill", "private": true, "type": "module", "scripts": { "test": "node --test test/" } }`.
+  is `{ "name": "sizemill", "private": true, "type": "module", "scripts": { "test": "node --test \"test/*.test.js\"" } }` (Node 22 runs a bare directory argument as a script, so the glob is quoted).
 
 ```
 public/desk/
@@ -52,7 +52,7 @@ public/desk/
 api/
   _lib/http.js   _lib/auth.js   _lib/geo.js   _lib/fuel.js
   route.js   places.js   fuel.js
-supabase/migrations/20261005120000_desk_core.sql
+supabase/migrations/20261005122150_desk_core_tables.sql (+ three policy migrations)
 test/calc.test.js  test/format.test.js  test/fuel.test.js  test/geo.test.js  test/store-memory.test.js
 ```
 
@@ -205,7 +205,7 @@ export function dealTotals(deal, { items = [], costs = [], payments = [], trips 
 //   balance,                // revenue - paid
 //   paymentStatus,          // revenue<=EPS ? (paid>EPS?'paid':'none') : paid>=revenue-EPS ? 'paid' : paid>EPS ? 'part' : 'unpaid'
 //   bucket                  // 'cancelled' if status cancelled;
-//                           // 'realised' if certainty confirmed AND paymentStatus 'paid' AND status in (delivered, completed);
+//                           // 'realised' if certainty confirmed AND paymentStatus 'paid' or 'none' (a £0 sale) AND status in (delivered, completed);
 //                           // otherwise 'pending'
 // }
 export function summarise(dealsWithChildren, { from, to } = {})

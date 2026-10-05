@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test \"test/*.test.js\"",
+    "dev": "node scripts/dev-server.mjs",
+    "e2e": "node test/e2e/desk.e2e.mjs"
   }
 }

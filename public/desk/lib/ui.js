@@ -172,10 +172,24 @@ function renderIcon(icon, size) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Provided by app.js around every view: { setHeader({ title, back } | null), labelFor(href) }.
- * Page uses it to put its title and back link in the mobile top bar and the document title.
+ * Provided by app.js around every view:
+ * { setHeader({ title, back, actionHrefs } | null), labelFor(href), navigate(to, { replace }) }.
+ * Page uses it to put its title and back link in the phone top bar and the document title.
  */
 export const ShellContext = createContext(null);
+
+// Hrefs of link actions (a Button with href) a Page shows, so the top bar can skip its own
+// copy of the same action. Looks a few levels into wrappers such as a .row div.
+function linkHrefs(node, depth = 0, found = []) {
+  if (depth > 3 || node === null || node === undefined || typeof node !== 'object') return found;
+  if (Array.isArray(node)) {
+    for (const child of node) linkHrefs(child, depth, found);
+  } else if (node.props) {
+    if (typeof node.props.href === 'string') found.push(node.props.href);
+    else linkHrefs(node.props.children, depth + 1, found);
+  }
+  return found;
+}
 
 function resolveBack(back, shell) {
   if (!back) return null;
@@ -196,12 +210,13 @@ export function Page({ title, subtitle, actions, back, children, class: classAtt
   const titleText = typeof title === 'string' || typeof title === 'number' ? String(title) : null;
   const synced = Boolean(shell) && titleText !== null;
   const bare = !hasContent(subtitle) && !hasContent(actions);
+  const actionHrefs = linkHrefs(actions).join(' ');
 
   useEffect(() => {
     if (!shell) return undefined;
-    shell.setHeader({ title: titleText, back: backLink });
+    shell.setHeader({ title: titleText, back: backLink, actionHrefs });
     return () => shell.setHeader(null);
-  }, [shell, titleText, backLink?.href, backLink?.label]);
+  }, [shell, titleText, backLink?.href, backLink?.label, actionHrefs]);
 
   return html`<div class=${cx('page', classAttr, className)}>
     <header class=${cx('page-head', synced && 'is-synced', synced && bare && 'is-bare')}>
@@ -226,7 +241,7 @@ export function Page({ title, subtitle, actions, back, children, class: classAtt
 
 /** Card({ title, subtitle, actions, children, pad = true }) — pad=false for tables and lists. */
 export function Card({ title, subtitle, actions, children, pad = true, id, class: classAttr, className }) {
-  const hasHead = hasContent(title) || hasContent(actions);
+  const hasHead = hasContent(title) || hasContent(subtitle) || hasContent(actions);
   return html`<section id=${id} class=${cx('card', !pad && 'card-flush', classAttr, className)}>
     ${hasHead && html`<header class="card-head">
       <div class="card-titles">
@@ -313,7 +328,7 @@ export function Loading({ label = 'Loading…', delay = 150, class: classAttr, c
     const timer = setTimeout(() => setVisible(true), delay);
     return () => clearTimeout(timer);
   }, [delay]);
-  return html`<div class=${cx('loading', classAttr, className)} role="status" aria-live="polite">
+  return html`<div class=${cx('loading', classAttr, className)} role="status">
     ${visible && html`<span class="spinner" aria-hidden="true"></span><span>${label}</span>`}
   </div>`;
 }
@@ -335,8 +350,10 @@ export function ErrorState({ error, title = "Couldn't load this", onRetry, retry
 // Buttons
 // ---------------------------------------------------------------------------------------------
 
-function preventDefault(event) {
+// What a disabled or busy button does with a click: nothing, not even bubbling to a clickable row.
+function swallowClick(event) {
   event.preventDefault();
+  event.stopPropagation();
 }
 
 /**
@@ -367,16 +384,20 @@ export function Button(props) {
       href=${inactive ? undefined : href}
       role=${inactive ? 'link' : undefined}
       aria-disabled=${inactive ? 'true' : undefined}
-      onClick=${inactive ? preventDefault : onClick}
+      onClick=${inactive ? swallowClick : onClick}
     >${content}</a>`;
   }
+  // A loading button stays focusable (aria-disabled, clicks swallowed) so keyboard focus doesn't
+  // drop to <body> mid-save; swallowing the click also stops a submit button re-submitting its form.
+  const busy = Boolean(loading) && !disabled;
   return html`<button
     ...${rest}
     type=${type ?? 'button'}
     class=${classes}
-    disabled=${inactive}
+    disabled=${Boolean(disabled)}
+    aria-disabled=${busy ? 'true' : undefined}
     aria-busy=${loading ? 'true' : undefined}
-    onClick=${onClick}
+    onClick=${busy ? swallowClick : onClick}
   >${content}</button>`;
 }
 
@@ -760,8 +781,9 @@ function useOverlay(nodeRef, requestClose) {
 /**
  * Modal({ title, onClose, children, footer, size = 'md', dismissible = true })
  * Render it while open, remove it to close. Escape, the × and a backdrop tap call onClose()
- * (unless dismissible is false). Focus is trapped inside and restored afterwards. Phones get
- * a bottom sheet; size: 'sm'|'md'|'lg' sets the desktop width.
+ * (unless dismissible is false). Focus is trapped inside and restored afterwards; it starts on
+ * the dialog itself, or on a control given `autofocus`. Phones get a bottom sheet;
+ * size: 'sm'|'md'|'lg' sets the desktop width.
  */
 export function Modal({ title, onClose, children, footer, size = 'md', dismissible = true, class: classAttr, className }) {
   const dialogRef = useRef(null);
