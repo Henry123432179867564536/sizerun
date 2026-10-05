@@ -25,7 +25,9 @@ import {
 import { BrandLockup, Logo, applyBrand, brandCacheKey, brandFromSettings, cacheBrand, pageTitle, readCachedBrand } from './lib/brand.js';
 
 const APP_NAME = 'Sizemill Desk';
-const homeLabel = (brand) => `${brand?.title ?? APP_NAME} — dashboard`;
+// The logo in the top left is where you change it: it opens Settings at "Your business".
+const BRAND_EDIT_HREF = '#/settings?section=business';
+const brandEditLabel = (brand) => `${brand?.title ?? APP_NAME} — change your logo, name and colour`;
 const SETUP_BANNER_KEY = 'sizemill.desk.setupBannerDismissed';
 const MIN_PASSWORD_LENGTH = 8;
 const GENERIC_ERROR = 'Something went wrong — please try again.';
@@ -368,8 +370,9 @@ function Sidebar({ route, user, local, brand, onSignOut }) {
     <${Icon} name=${item.icon} size=${18} /><span>${item.label}</span>
   </a>`;
   return html`<aside class="sidebar">
-    <a class="brand" href="#/" aria-label=${homeLabel(brand)}>
+    <a class="brand brand-edit" href=${BRAND_EDIT_HREF} aria-label=${brandEditLabel(brand)} title="Change your logo, name and colour">
       <${BrandLockup} brand=${brand} />
+      <span class="brand-edit-badge" aria-hidden="true"><${Icon} name="edit" size=${12} /></span>
     </a>
     <${Button} kind="primary" href=${NEW_SALE.href} icon="plus" block>New sale<//>
     <a class="nav-link" href=${SEARCH_LINK.href} aria-current=${currentFor(SEARCH_LINK, route)} aria-keyshortcuts="/">
@@ -413,8 +416,9 @@ function TopBar({ route, header, local, brand }) {
       ? html`<a class="topbar-lead" href=${back.href} aria-label=${`Back to ${back.label}${localNote}`} title=${local ? 'Local mode — data stays in this browser' : undefined}>
           <${Icon} name="chevron-left" size=${24} />${localDot}
         </a>`
-      : html`<a class="topbar-lead brand-lead" href="#/" aria-label=${`${homeLabel(brand)}${localNote}`} title=${local ? 'Local mode — data stays in this browser' : undefined}>
+      : html`<a class="topbar-lead brand-lead brand-edit" href=${BRAND_EDIT_HREF} aria-label=${`${brandEditLabel(brand)}${localNote}`} title=${local ? 'Local mode — data stays in this browser' : 'Change your logo, name and colour'}>
           <${Logo} brand=${brand} size=${28} maxWidth=${88} compact />${localDot}
+          <span class="brand-edit-badge" aria-hidden="true"><${Icon} name="edit" size=${10} /></span>
         </a>`}
     <div class="topbar-title" aria-hidden="true">${title}</div>
     ${route.name !== 'search' && html`<a class="topbar-icon" href="#/search" aria-label="Search"><${Icon} name="search" size=${22} /></a>`}

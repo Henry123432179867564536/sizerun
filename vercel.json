@@ -3,6 +3,13 @@
     "lhr1"
   ],
   "cleanUrls": true,
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/desk/",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/admin",

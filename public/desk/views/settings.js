@@ -700,7 +700,7 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
 
 // ---- view --------------------------------------------------------------------------------
 
-export default function SettingsView({ store, user }) {
+export default function SettingsView({ store, user, params }) {
   const { data: settings, error, loading, reload } = useStoreData(store, (s) => s.settings.get());
   const [form, setForm] = useState(null);
   const [baseline, setBaseline] = useState(null);
@@ -713,6 +713,13 @@ export default function SettingsView({ store, user }) {
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
   const account = user ?? store.auth.user();
+
+  // Arriving from the logo in the top left (#/settings?section=business): bring that card into view.
+  const formReady = Boolean(form);
+  useEffect(() => {
+    if (params?.section !== 'business' || !formReady) return;
+    document.getElementById('business')?.scrollIntoView({ block: 'start' });
+  }, [params?.section, formReady]);
 
   useEffect(() => () => {
     mountedRef.current = false;
@@ -795,7 +802,9 @@ export default function SettingsView({ store, user }) {
     <//>`}
 
     <form class="settings-form" ref=${formRef} onSubmit=${onSubmit} noValidate=${true}>
-      <${BusinessCard} store=${store} settings=${settings} form=${form} set=${set} errorFor=${errorFor} touch=${touch} />
+      <div id="business" class=${params?.section === 'business' ? 'settings-target' : undefined}>
+        <${BusinessCard} store=${store} settings=${settings} form=${form} set=${set} errorFor=${errorFor} touch=${touch} />
+      </div>
 
       <${Card} title="Drives" subtitle="Where drives start and the car you drive.">
         <div class="form-grid">

@@ -3116,3 +3116,24 @@ html.is-settling .tabbar {
     break-inside: avoid;
   }
 }
+
+/* ---- Logo in the top left opens "Your business" in Settings -------------------------------- */
+.brand-edit { position: relative; }
+.brand-edit-badge {
+  position: absolute; display: grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--surface); color: var(--ink-2);
+  border: 1px solid var(--line-2); box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
+  pointer-events: none;
+}
+.sidebar .brand-edit-badge { left: 30px; top: 28px; opacity: 0; transition: opacity 120ms ease; }
+.sidebar .brand-edit:hover .brand-edit-badge,
+.sidebar .brand-edit:focus-visible .brand-edit-badge { opacity: 1; }
+.topbar-lead.brand-edit .brand-edit-badge { width: 15px; height: 15px; right: -3px; bottom: -3px; }
+.settings-target > .card { animation: settings-target-ring 1.6s ease-out 1; }
+@keyframes settings-target-ring {
+  0%, 35% { box-shadow: 0 0 0 3px var(--ring, var(--signal)); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .settings-target > .card { animation: none; } }
+#business { scroll-margin-top: calc(var(--topbar-h, 56px) + 12px); }
