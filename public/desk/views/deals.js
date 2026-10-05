@@ -108,6 +108,7 @@ const CSS = `
 @media (min-width: 640px) { .sales-table { display: block; } .sales-rows { display: none; } }
 .sale-row.list-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 0 12px; min-height: 64px; padding: 10px 16px; }
 .sale-row .list-title { font-weight: 600; }
+.sale-row .list-aside { max-width: none; text-align: right; }
 .sale-row-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 4px; color: var(--ink-2); font-size: 12.5px; }
 .repeat-block .sf-sum { background: var(--surface); }
 .sale-amt { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }

@@ -311,6 +311,11 @@ without auth header for fuel and return a clear error for route/places when no s
 Both implementations expose exactly the same API; all methods async; rows are plain objects with
 the column names in §2; numerics as numbers. Errors are thrown as `Error` with a human message.
 
+The shell caches the business's brand (name, logo URL, colour) for the sign-in and boot screens
+(lib/brand.js `cacheBrand` / `readCachedBrand`, also read inline by index.html): the account's in
+`localStorage['sizemill.desk.brand']`, local mode's in `localStorage['sizemill.desk.brand.local']`,
+so trying Desk with `?local=1` never replaces the real account's brand.
+
 ```js
 store.mode                                   // 'supabase' | 'memory'
 store.auth.user()                            // current user or null (sync)

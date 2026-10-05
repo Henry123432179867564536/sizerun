@@ -404,16 +404,19 @@ function TopBar({ route, header, local, brand }) {
     document.title = pageTitle(title);
   }, [title, brand?.title]);
 
+  // Local mode is a small amber dot on the lead (the More sheet says what it means), so the
+  // title keeps its room next to Search and the primary action on a 375px phone.
+  const localDot = local && html`<span class="topbar-local-dot" aria-hidden="true"></span>`;
+  const localNote = local ? ' (local mode)' : '';
   return html`<header class="topbar">
     ${back
-      ? html`<a class="topbar-lead" href=${back.href} aria-label=${`Back to ${back.label}`}>
-          <${Icon} name="chevron-left" size=${24} />
+      ? html`<a class="topbar-lead" href=${back.href} aria-label=${`Back to ${back.label}${localNote}`} title=${local ? 'Local mode — data stays in this browser' : undefined}>
+          <${Icon} name="chevron-left" size=${24} />${localDot}
         </a>`
-      : html`<a class="topbar-lead brand-lead" href="#/" aria-label=${homeLabel(brand)}>
-          <${Logo} brand=${brand} size=${28} maxWidth=${104} compact />
+      : html`<a class="topbar-lead brand-lead" href="#/" aria-label=${`${homeLabel(brand)}${localNote}`} title=${local ? 'Local mode — data stays in this browser' : undefined}>
+          <${Logo} brand=${brand} size=${28} maxWidth=${88} compact />${localDot}
         </a>`}
     <div class="topbar-title" aria-hidden="true">${title}</div>
-    ${local && html`<${Badge} tone="warn">Local<//>`}
     ${route.name !== 'search' && html`<a class="topbar-icon" href="#/search" aria-label="Search"><${Icon} name="search" size=${22} /></a>`}
     ${action && html`<${Button} kind="primary" size="sm" href=${action.href} icon=${action.icon}>${action.label}<//>`}
   </header>`;
@@ -465,15 +468,16 @@ function SetupBanner({ store, user }) {
     setDismissed(true);
     writeFlag(flagKey);
   };
+  // Compact: one line and a button, so it never pushes the day's numbers off a 375px screen.
   return html`<${Banner}
     tone="signal"
     icon="map-pin"
+    class="banner-compact"
     title="Set up your drives"
     onDismiss=${dismiss}
-    actions=${html`<${Button} kind="primary" size="sm" href="#/settings">Open settings<//>`}
+    actions=${html`<${Button} kind="primary" size="sm" href="#/settings">Set up<//>`}
   >
-    Add your home address, mpg and hourly rate so Desk can work out the miles, fuel and time
-    behind every drop-off — and what each deal really made you.
+    <span class="banner-compact-more">Home address, mpg and hourly rate — for real drive costs.</span>
   <//>`;
 }
 

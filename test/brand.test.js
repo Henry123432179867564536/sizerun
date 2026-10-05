@@ -17,7 +17,7 @@ const stubbed = source.replace(
 );
 const brand = await import(`data:text/javascript;base64,${Buffer.from(stubbed).toString('base64')}`);
 const {
-  BRAND_CACHE_KEY, PRESETS, APP_NAME, Logo, brandCss, brandFromSettings, brandPalette, cacheBrand,
+  BRAND_CACHE_KEY, LOCAL_BRAND_CACHE_KEY, PRESETS, APP_NAME, Logo, brandCacheKey, brandCss, brandFromSettings, brandPalette, cacheBrand,
   clearCachedBrand, contrast, inkFor, logoBox, monogram, normalizeHex, parseLogo, readCachedBrand,
 } = brand;
 
@@ -155,6 +155,21 @@ describe('cached brand', () => {
     cacheBrand({ business_name: 'Umi Sneakers', logo_url: logo, brand_color: '#1f4b85', mpg: 45 }, storage);
     assert.deepEqual(JSON.parse(storage.data.get(BRAND_CACHE_KEY)), { v: 1, name: 'Umi Sneakers', logo_url: logo, brand_color: '#1F4B85' });
     assert.deepEqual(readCachedBrand(storage), { name: 'Umi Sneakers', logo_url: logo, brand_color: '#1F4B85' });
+  });
+
+  test('local mode caches under its own key and never touches the account cache', () => {
+    assert.equal(brandCacheKey(false), BRAND_CACHE_KEY);
+    assert.equal(brandCacheKey(true), LOCAL_BRAND_CACHE_KEY);
+    assert.notEqual(LOCAL_BRAND_CACHE_KEY, BRAND_CACHE_KEY);
+    const account = JSON.stringify({ v: 1, name: 'Umi Sneakers', logo_url: null, brand_color: '#1F4B85' });
+    const storage = fakeStorage({ [BRAND_CACHE_KEY]: account });
+    cacheBrand({ business_name: 'Test shop', brand_color: '#8C1D40' }, storage, brandCacheKey(true));
+    assert.equal(storage.data.get(BRAND_CACHE_KEY), account);
+    assert.equal(readCachedBrand(storage, LOCAL_BRAND_CACHE_KEY).name, 'Test shop');
+    assert.equal(readCachedBrand(storage).name, 'Umi Sneakers');
+    cacheBrand({}, storage, LOCAL_BRAND_CACHE_KEY); // unbranded local data clears only its own entry
+    assert.equal(storage.data.has(LOCAL_BRAND_CACHE_KEY), false);
+    assert.equal(storage.data.get(BRAND_CACHE_KEY), account);
   });
 
   test('an unbranded account clears the cache', () => {

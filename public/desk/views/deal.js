@@ -95,7 +95,7 @@ const CSS = `
 @media (max-width: 899.98px) { .sd-step { display: none; } }
 @media (min-width: 900px) { .sd-bar { display: none; } }
 .sd-line { display: flex; flex-direction: column; }
-.sd-line-main { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 56px; margin: 0; padding: 12px 16px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sd-line-main { display: flex; align-items: flex-start; gap: 12px; width: 100%; min-height: 56px; margin: 0; padding: 12px var(--card-pad, 16px); border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .sd-line-main:hover { background: var(--hover); }
 .sd-line-main:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
 .sd-line-text { display: flex; flex: 1 1 auto; flex-direction: column; gap: 2px; min-width: 0; }
@@ -105,14 +105,15 @@ const CSS = `
 .sd-line-aside { display: flex; flex: none; flex-direction: column; align-items: flex-end; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sd-line-aside .sd-line-sub { font-size: 12px; }
 .sd-line-chev { flex: none; margin-top: 2px; color: var(--ink-3); }
-.sd-line-cta { display: flex; gap: 8px; padding: 0 16px 12px; }
-.sd-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--line); background: var(--surface-2); font-variant-numeric: tabular-nums; }
+.sd-line-cta { display: flex; gap: 8px; padding: 0 var(--card-pad, 16px) 12px; }
+.sd-total { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 12px var(--card-pad, 16px); border-top: 1px solid var(--line); background: var(--surface-2); font-variant-numeric: tabular-nums; }
 .sd-total-label { font-weight: 600; }
 .sd-total-sub { color: var(--ink-2); font-size: 12.5px; }
 .sd-total-value { text-align: right; font-weight: 600; white-space: nowrap; }
-.sd-empty { margin: 0; padding: 0 16px 16px; color: var(--ink-2); font-size: 13px; }
-.sd-pad { padding: 4px 16px 14px; }
+.sd-empty { margin: 0; padding: 14px var(--card-pad, 16px) var(--card-pad, 16px); color: var(--ink-2); font-size: 13px; }
+.sd-pad { padding: 4px var(--card-pad, 16px) 14px; }
 .sd-ruled { border-top: 1px solid var(--line); }
+.sd-ruled > .list-item { padding-left: var(--card-pad, 16px); padding-right: var(--card-pad, 16px); }
 .sd-balance { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .sd-balance-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .sd-msgs { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -52,7 +52,8 @@ const CSS = `
 }
 @media (max-width: 639.98px) {
   .cl-table td.cell-primary { min-width: 0; }
-  .cl-toolbar > .select-wrap { flex-basis: 150px; max-width: 45%; }
+  .cl-toolbar > .search { flex: 1 1 0; }
+  .cl-toolbar > .select-wrap { flex: 0 0 150px; max-width: 50%; }
 }
 
 /* Compact two-line list rows for phones (shared by Clients, Client, Stock, Trips): title and

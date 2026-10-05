@@ -679,6 +679,29 @@ hr {
   text-decoration: none;
 }
 
+.topbar-lead {
+  position: relative;
+}
+
+/* Local (?local=1) mode on phones: an amber dot on the lead instead of a badge. */
+.topbar-local-dot {
+  position: absolute;
+  top: 3px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--paper);
+  border-radius: 50%;
+  background: var(--warn, #B7791F);
+  box-sizing: content-box;
+}
+
+@media (max-width: 399.98px) {
+  .topbar {
+    gap: 6px;
+  }
+}
+
 .topbar-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -1168,7 +1191,8 @@ hr {
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  margin-left: auto;
+  /* A 36px button centres on the title's first line instead of hanging below it. */
+  margin: -7px 0 -7px auto;
 }
 
 .card-body {
@@ -1411,6 +1435,54 @@ hr {
 
 .banner-close {
   margin: -6px -8px -6px 0;
+}
+
+/* A one-line banner: [icon] Title (detail on wide screens) [Action] [×]. */
+.banner-compact {
+  align-items: center;
+  padding: 8px 8px 8px 14px;
+}
+
+.banner-compact .banner-icon {
+  margin-top: 0;
+}
+
+.banner-compact .banner-body {
+  display: flex;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.banner-compact .banner-title {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banner-compact .banner-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banner-compact .banner-actions {
+  flex: none;
+  margin: 0 0 0 auto;
+}
+
+.banner-compact .banner-close {
+  margin: 0;
+}
+
+@media (max-width: 699.98px) {
+  .banner-compact .banner-text {
+    display: none;
+  }
 }
 
 .banner-gain { background: var(--gain-tint); }

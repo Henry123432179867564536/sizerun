@@ -2,10 +2,13 @@
 //
 // Starts the dev server (scripts/dev-server.mjs) on a free port, checks the sign-in screen, then
 // drives /desk/?local=1 with Playwright through the whole journey a reseller goes through —
-// settings, a footballer client (created, then edited), a sale with an item still to buy, the
-// drive (real /api/route and /api/fuel), marking the item bought, getting paid and delivering,
-// the deal checker and its "Turn into a sale", stock allocated to a sale, a drive planned on the
-// Trips page, and the delete flows. It runs once on a phone (390×844) and once on a laptop
+// settings with their own logo (a generated PNG), name and brand colour, a footballer client
+// (created, then edited), a two-item sale with one item still to buy (and the leave guard on
+// New sale), the drive (real /api/route and /api/fuel), marking the item bought, a deposit
+// through the payment sheet then paid in full and delivered, the deal checker and its "Turn
+// into a sale", stock allocated to a sale, search (a client with their orders, and an item),
+// the client's lifetime and per-order profit, a drive planned on the Trips page, and the
+// delete flows. Phones get list rows and a sticky save bar; laptops get tables. It runs once on a phone (390×844) and once on a laptop
 // (1280×800), and revisits every screen in dark mode on a 360px phone. Any console error,
 // page error, failed request to the Desk server or sideways scroll fails the run.
 //
@@ -56,6 +59,11 @@ const CLIENT = {
   whatsapp: 'https://wa.me/447700900123',
 };
 const ITEM = { description: 'Nike Air Jordan 1 Chicago', size: 'UK 9', price: '450', expected: '300', paid: '280' };
+// The same sale's second item, already bought: £40 on top of the Jordans' £150.
+const ITEM2 = { description: 'Nike Tech Fleece Joggers', size: 'M', price: '110', paid: '70' };
+const SALE = { profitText: '£190.00', pending: '£190', deposit: '100', balanceText: '£460.00' };
+// The business's own brand: a generated PNG logo, its name and the Teal preset.
+const BRAND = { name: 'Umi Sneakers', swatch: 'Teal', hex: '#0F6E74' };
 const STOCK = { name: 'Adidas Predator Elite', size: 'UK 9', qty: '3', cost: '120', soldQty: '2', price: '200' };
 const CHECK = { item: 'Puma Future Ultimate', sale: '200', buy: '170' };
 
@@ -154,12 +162,46 @@ async function waitForText(locator, pattern, { timeout = STEP_TIMEOUT_MS, what =
 }
 
 // ---------------------------------------------------------------------------------------------
-// Page helpers that know Desk's markup (ui.js components)
+// Page helpers that know Desk's markup (ui.js components and the views)
 // ---------------------------------------------------------------------------------------------
+
+// Phones (under 640px) get list rows instead of tables and a sticky save bar on New sale.
+const isPhone = (page) => page.viewportSize().width < 640;
+
+const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 function stat(page, label) {
   const tile = page.locator('.stat').filter({ has: page.locator('.stat-label', { hasText: new RegExp(`^${label}$`) }) }).first();
   return { value: tile.locator('.stat-value'), sub: tile.locator('.stat-sub') };
+}
+
+/** A key figure at the top of a sale page (Profit, Margin, Owed / Paid). */
+function fig(page, label) {
+  const box = page.locator('.sd-fig').filter({ has: page.locator('.sd-fig-label', { hasText: new RegExp(`^${label}$`) }) }).first();
+  return { value: box.locator('.sd-fig-value'), sub: box.locator('.sd-fig-sub') };
+}
+
+/** A row of the profit waterfall (ProfitBreakdown): its value cell. */
+function kv(scope, label) {
+  const page = typeof scope.page === 'function' ? scope.page() : scope; // `has` takes a root locator
+  return scope.locator('.kv > div', { has: page.locator('dt', { hasText: new RegExp(`^${label}`) }) }).first().locator('dd');
+}
+
+function card(page, title) {
+  return page.locator('.card', { has: page.locator('.card-title', { hasText: new RegExp(`^${title}$`) }) }).first();
+}
+
+/** Opens the sale page's "How it adds up" disclosure (folded on phones). */
+async function openBreakdown(page) {
+  const details = page.locator('details', { has: page.locator('summary', { hasText: 'How it adds up' }) }).first();
+  await details.waitFor();
+  if (!(await details.evaluate((node) => node.open))) await details.locator('summary').click();
+  return details;
+}
+
+/** The New sale form's Save button: the sticky bar on phones, the side card on a laptop. */
+function saveSaleButton(page) {
+  return page.locator(isPhone(page) ? '.sf-bar' : '.ns-side-save').getByRole('button', { name: 'Save sale' });
 }
 
 async function go(page, hash) {
@@ -184,10 +226,11 @@ async function chooseAddress(input, query, pick) {
   await option.click();
 }
 
+/** Answers the topmost confirm dialog (a sheet may sit underneath it). */
 async function confirm(page, label) {
-  const dialog = page.getByRole('dialog');
+  const dialog = page.getByRole('dialog').last();
   await dialog.getByRole('button', { name: label, exact: true }).click();
-  await dialog.waitFor({ state: 'detached' });
+  await page.getByRole('dialog', { name: /\?$/ }).waitFor({ state: 'detached' }).catch(() => {});
 }
 
 async function dismissToasts(page) {
@@ -209,20 +252,62 @@ async function shoot(page, pass, screen, problems) {
   return path;
 }
 
+/** A small PNG logo drawn in the page (no image files in the repo). */
+async function makeLogoPng(page) {
+  const dataUrl = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 360;
+    canvas.height = 120;
+    const g = canvas.getContext('2d');
+    g.fillStyle = '#0F6E74';
+    g.beginPath();
+    g.arc(60, 60, 50, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = '#FFFFFF';
+    g.font = 'bold 54px sans-serif';
+    g.fillText('U', 42, 80);
+    g.fillStyle = '#1B2028';
+    g.font = 'bold 60px sans-serif';
+    g.fillText('UMI', 130, 84);
+    return canvas.toDataURL('image/png');
+  });
+  return Buffer.from(dataUrl.split(',')[1], 'base64');
+}
+
 // ---------------------------------------------------------------------------------------------
 // The journey
 // ---------------------------------------------------------------------------------------------
 
 async function settingsStep(page, pass, problems) {
-  step('settings: home postcode, 45 mpg, E10, £20/h');
+  step('settings: logo (PNG upload), business name, brand colour');
   await go(page, '#/settings');
+  await page.locator('input[type="file"]').setInputFiles({ name: 'umi-logo.png', mimeType: 'image/png', buffer: await makeLogoPng(page) });
+  await expectToast(page, 'Logo added.');
+  // The shell shows the logo straight away: the top bar on a phone, the sidebar on a laptop.
+  await page.locator(isPhone(page) ? '.topbar img.brand-logo' : '.sidebar img.brand-logo').first().waitFor();
+  await page.getByLabel('Business name').fill(BRAND.name);
+  await page.getByRole('button', { name: BRAND.swatch, exact: true }).click();
+  check((await page.getByRole('button', { name: BRAND.swatch, exact: true }).getAttribute('aria-pressed')) === 'true', 'brand swatch picked');
+
+  step('settings: home postcode, 45 mpg, E10, £20/h');
   await chooseAddress(page.getByLabel('Home address'), HOME_POSTCODE, HOME_POSTCODE);
   await page.getByLabel(/^Fuel economy/).fill('45');
   await page.getByLabel(/^Fuel type/).selectOption('E10');
+  // Save straight from a focused field: the tap must land on Save, not on the tab bar coming back.
   await page.getByLabel(/^Your hourly rate/).fill('20');
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expectToast(page, 'Settings saved.');
-  await waitForText(page.locator('.field-hint', { hasText: 'Pinned on the map' }), /Pinned on the map/, { what: 'home pinned' });
+  await waitForText(page.locator('.addr-state.is-pinned'), /On the map/, { what: 'home pinned' });
+
+  // The brand reaches the page, and local mode caches it under its own key.
+  const brand = await page.evaluate(() => ({
+    signal: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim().toUpperCase(),
+    local: localStorage.getItem('sizemill.desk.brand.local'),
+    account: localStorage.getItem('sizemill.desk.brand'),
+  }));
+  check(brand.signal === BRAND.hex, `--brand should be ${BRAND.hex}, got ${brand.signal}`);
+  check(brand.local && JSON.parse(brand.local).name === BRAND.name, 'local mode caches its brand under sizemill.desk.brand.local');
+  check(brand.account === null, 'local mode must not overwrite the account brand cache');
   await shoot(page, pass, 'settings', problems);
 }
 
@@ -258,27 +343,57 @@ async function clientStep(page, pass, problems) {
 }
 
 async function saleStep(page, pass, problems) {
-  step(`sale: ${ITEM.description}, sell £${ITEM.price}, still to buy at £${ITEM.expected}`);
+  step(`sale: 2 items — ${ITEM.description} (to buy) and ${ITEM2.description} (bought)`);
   await page.getByRole('button', { name: `New sale for ${CLIENT.name.split(' ')[0]}` }).first().click();
   await page.waitForFunction(() => window.location.hash === '#/sales/new');
   await waitForText(page.locator('.list-title', { hasText: CLIENT.name }), CLIENT.name, { what: 'client picked' });
-  await page.getByLabel(/^Description/).fill(ITEM.description);
-  await page.getByLabel('Size', { exact: true }).fill(ITEM.size);
-  await page.getByLabel(/^Sale price each/).fill(ITEM.price);
-  await page.getByLabel(/^Expected cost each/).fill(ITEM.expected);
-  const totals = page.locator('.card', { has: page.locator('.card-title', { hasText: 'Totals' }) });
-  await waitForText(totals.locator('.kv-total', { hasText: 'Profit' }).locator('dd'), '£150.00', { what: 'new sale profit' });
+  const first = page.locator('.repeat-block[data-item]').nth(0);
+  await first.getByLabel(/^Description/).fill(ITEM.description);
+  await first.getByLabel('Size', { exact: true }).fill(ITEM.size);
+  await first.getByLabel(/^Sale price each/).fill(ITEM.price);
+  await first.getByLabel(/^Expected cost each/).fill(ITEM.expected);
+
+  await page.getByRole('button', { name: 'Add another item' }).click();
+  const second = page.locator('.repeat-block[data-item]').nth(1);
+  await second.waitFor();
+  await second.getByLabel(/^Description/).fill(ITEM2.description);
+  await second.getByLabel('Size', { exact: true }).fill(ITEM2.size);
+  await second.getByRole('radio', { name: 'Bought' }).click();
+  await second.getByLabel(/^Sale price each/).fill(ITEM2.price);
+  await second.getByLabel(/^Paid each/).fill(ITEM2.paid);
+
+  const totals = card(page, 'Totals');
+  await waitForText(kv(totals, 'Profit'), SALE.profitText, { what: 'new sale profit' });
+  if (isPhone(page)) {
+    // Phones: the running profit and Save ride in a sticky bar above the tab bar.
+    await waitForText(page.locator('.sf-bar .sf-bar-main'), new RegExp(`^Profit ${escapeRe(SALE.profitText)}`), { what: 'sticky bar profit' });
+  }
   await shoot(page, pass, 'sale-new', problems);
-  await page.getByRole('button', { name: 'Save sale' }).click();
+
+  step('sale: leaving with unsaved work asks first (Keep editing keeps it)');
+  // Done typing (the phone's tab bar steps aside while a field has focus).
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.locator(isPhone(page) ? '.tabbar a[href="#/clients"]' : 'nav a[href="#/clients"]').first().click();
+  const guard = page.getByRole('dialog', { name: 'Discard this sale?' });
+  await guard.waitFor();
+  await guard.getByRole('button', { name: 'Keep editing' }).click();
+  await guard.waitFor({ state: 'detached' });
+  check(await page.evaluate(() => window.location.hash === '#/sales/new'), 'still on New sale after Keep editing');
+  check((await first.getByLabel(/^Description/).inputValue()) === ITEM.description, 'the form kept its items');
+
+  await saveSaleButton(page).click();
   await expectToast(page, /^Sale SM-\d{4} saved\.$/);
   await page.waitForFunction(() => /^#\/sales\/[0-9a-f-]{36}$/.test(window.location.hash));
+  await page.locator('.sd-line', { hasText: ITEM.description }).first().waitFor();
+  check((await page.locator('.sd-line', { hasText: ITEM.description }).count()) === 1, 'first item saved');
+  check((await page.locator('.sd-line', { hasText: ITEM2.description }).count()) === 1, 'second item saved');
   return page.evaluate(() => window.location.hash);
 }
 
 async function dashboardPendingStep(page, pass, problems) {
-  step('dashboard: £150 pending, 1 item to buy');
+  step(`dashboard: ${SALE.pending} pending, 1 item to buy`);
   await go(page, '#/');
-  await waitForText(stat(page, 'Profit pending').value, '£150', { what: 'pending profit' });
+  await waitForText(stat(page, 'Profit pending').value, SALE.pending, { what: 'pending profit' });
   await waitForText(stat(page, 'Profit pending').sub, /1 item to buy/, { what: 'items to buy' });
   await waitForText(stat(page, 'Profit realised').value, '£0', { what: 'realised profit' });
   await waitForText(page.locator('.dash-group', { hasText: 'to buy' }), new RegExp(ITEM.description), { what: 'Needs you: to buy' });
@@ -300,13 +415,13 @@ async function driveStep(page, pass, problems, saleHash) {
   await expectToast(page, /^Drive logged — /);
   await dialog.waitFor({ state: 'detached' });
 
-  const perHour = await waitForText(stat(page, 'Per driving hour').value, moneyPattern, { what: '£ per driving hour' });
-  const travel = page.locator('.kv > div', { has: page.locator('dt', { hasText: /^Travel/ }) }).first().locator('dd');
-  const travelText = await waitForText(travel, /^−£\d+\.\d\d$/, { what: 'travel cost' });
+  const breakdown = await openBreakdown(page);
+  const perHour = await waitForText(kv(breakdown, 'Per driving hour'), moneyPattern, { what: '£ per driving hour' });
+  const travelText = await waitForText(kv(breakdown, 'Travel'), /^−£\d+\.\d\d$/, { what: 'travel cost' });
   check(parseMoney(travelText) < 0 && parseMoney(travelText) > -100, `travel cost looks wrong: ${travelText}`);
   check(parseMoney(perHour) > 0, `£ per driving hour should be positive, got ${perHour}`);
-  await waitForText(stat(page, 'After your time').value, moneyPattern, { what: 'after your time' });
-  await waitForText(page.locator('.card', { hasText: 'Drives' }).locator('tbody tr'), /round trip/, { what: 'drive row' });
+  await waitForText(kv(breakdown, 'After your time'), moneyPattern, { what: 'after your time' });
+  await waitForText(card(page, 'Drives').locator('.sd-line'), /round trip/, { what: 'drive row' });
 }
 
 async function markBoughtStep(page) {
@@ -318,21 +433,30 @@ async function markBoughtStep(page) {
   await dialog.getByRole('button', { name: 'Mark bought' }).click();
   await dialog.waitFor({ state: 'detached' });
   await expectToast(page, /^Marked bought\. £20\.00 cheaper than expected\.$/);
-  const vsExpected = page.locator('.kv-sub', { has: page.locator('dt', { hasText: 'vs expected' }) }).first().locator('dd');
-  await waitForText(vsExpected, '+£20.00', { what: 'variance vs expected' });
-  await waitForText(page.locator('td[data-label="Cost each"]'), /£20\.00 under expected/, { what: 'item variance' });
-  await waitForText(stat(page, 'Profit').sub, 'Confirmed', { what: 'certainty' });
+  const breakdown = await openBreakdown(page);
+  await waitForText(breakdown.locator('.kv-sub', { has: page.locator('dt', { hasText: 'vs expected' }) }).first().locator('dd'), '+£20.00', { what: 'variance vs expected' });
+  await waitForText(page.locator('.sd-line', { hasText: ITEM.description }), /£20\.00 under expected/, { what: 'item variance' });
+  await waitForText(fig(page, 'Profit').sub, 'Confirmed', { what: 'certainty' });
 }
 
 async function paidAndDeliveredStep(page, pass, problems) {
-  step('sale: paid in full, delivered → realised');
-  await page.getByRole('button', { name: /^Paid in full · £450\.00$/ }).click();
-  await expectToast(page, 'Paid in full — £450.00 recorded.');
+  step(`sale: a £${SALE.deposit} deposit through the payment sheet, then paid in full, delivered → realised`);
+  await card(page, 'Payments').getByRole('button', { name: 'Record payment' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Record a payment' });
+  await sheet.waitFor();
+  await sheet.getByLabel(/^Amount/).fill(SALE.deposit);
+  await sheet.getByRole('button', { name: 'Save payment' }).click();
+  await sheet.waitFor({ state: 'detached' });
+  await expectToast(page, `Payment of £${SALE.deposit}.00 recorded.`);
+  await waitForText(fig(page, 'Owed').value, SALE.balanceText, { what: 'owed after the deposit' });
+
+  await page.getByRole('button', { name: new RegExp(`^Paid in full · ${escapeRe(SALE.balanceText)}$`) }).click();
+  await expectToast(page, `Paid in full — ${SALE.balanceText} recorded.`);
   await page.getByLabel('Sale status').selectOption('delivered');
   await expectToast(page, /^SM-\d{4} is now delivered\.$/);
-  const profitCard = page.locator('.card', { has: page.locator('.card-title', { hasText: /^Profit$/ }) });
-  await waitForText(profitCard.locator('.card-head .badge'), 'Realised', { what: 'bucket' });
-  const profit = await waitForText(stat(page, 'Profit').value, moneyPattern, { what: 'sale profit' });
+  await waitForText(page.locator('.sd-reason').first(), /^Realised: delivered, paid and every cost confirmed\.$/, { what: 'bucket' });
+  await waitForText(fig(page, 'Paid').sub, 'In full', { what: 'paid in full' });
+  const profit = await waitForText(fig(page, 'Profit').value, moneyPattern, { what: 'sale profit' });
   await shoot(page, pass, 'sale', problems);
 
   await go(page, '#/');
@@ -341,6 +465,7 @@ async function paidAndDeliveredStep(page, pass, problems) {
   await waitForText(stat(page, 'Profit pending').value, '£0', { what: 'pending after delivery' });
   await waitForText(stat(page, '£ per driving hour').value, moneyPattern, { what: 'dashboard £ per driving hour' });
   await shoot(page, pass, 'dashboard-realised', problems);
+  return parseMoney(profit);
 }
 
 async function checkerStep(page, pass, problems) {
@@ -372,10 +497,10 @@ async function checkerStep(page, pass, problems) {
   check((await page.getByLabel(/^Expected cost each/).inputValue()) === CHECK.buy, 'prefilled expected cost');
   await waitForText(page.locator('form'), /round trip/, { what: 'prefilled drive' });
   await page.locator('.list-item', { hasText: CLIENT.name }).first().click();
-  await page.getByRole('button', { name: 'Save sale' }).click();
+  await saveSaleButton(page).click();
   await expectToast(page, /^Sale SM-\d{4} saved\.$/);
   await page.waitForFunction(() => /^#\/sales\/[0-9a-f-]{36}$/.test(window.location.hash));
-  await waitForText(page.locator('.card', { hasText: 'Drives' }).locator('tbody tr'), /round trip/, { what: 'drive saved from the checker' });
+  await waitForText(card(page, 'Drives').locator('.sd-line'), /round trip/, { what: 'drive saved from the checker' });
 }
 
 async function stockStep(page, pass, problems) {
@@ -400,27 +525,76 @@ async function stockStep(page, pass, problems) {
   check((await page.getByLabel(/^Description/).inputValue()) === STOCK.name, 'stock line fills the description');
   await page.getByLabel(/^Qty/).fill(STOCK.soldQty);
   await page.getByLabel(/^Sale price each/).fill(STOCK.price);
-  await page.getByRole('button', { name: 'Save sale' }).click();
+  await saveSaleButton(page).click();
   await expectToast(page, /^Sale SM-\d{4} saved\.$/);
   await page.waitForFunction(() => /^#\/sales\/[0-9a-f-]{36}$/.test(window.location.hash));
   const stockSale = await page.evaluate(() => window.location.hash);
 
   await go(page, '#/stock');
-  const row = page.locator('tbody tr', { hasText: STOCK.name });
   await waitForText(stat(page, 'Units on hand').value, '1', { what: 'on hand after the sale' });
-  await waitForText(row.locator('td[data-label="Allocated"]'), STOCK.soldQty, { what: 'allocated' });
+  if (isPhone(page)) {
+    // Phones: one row per line, with "1 on hand · 2 on sales" as its meta line.
+    const row = page.locator('ul.lr-list .lr', { hasText: STOCK.name });
+    await waitForText(row.locator('.lr-meta'), `1 on hand · ${STOCK.soldQty} on sales`, { what: 'allocated (meta line)' });
+    await waitForText(row.locator('.lr-sub'), new RegExp(STOCK.size), { what: 'stock row size' });
+  } else {
+    const row = page.locator('tbody tr', { hasText: STOCK.name });
+    await waitForText(row.locator('td[data-label="Allocated"]'), STOCK.soldQty, { what: 'allocated' });
+  }
   await shoot(page, pass, 'stock', problems);
   return stockSale;
 }
 
-async function listsStep(page, pass, problems) {
+async function searchStep(page, pass, problems) {
+  step(`search: "${CLIENT.name.split(' ')[1]}" finds the client and their orders; "Jordan" finds the item`);
+  await go(page, '#/search');
+  const box = page.getByLabel('Search clients, items and sales');
+  await box.fill(CLIENT.name.split(' ')[1]);
+  const clients = page.locator('#sr-clients');
+  await waitForText(clients.locator('.sr-cmain').first(), new RegExp(CLIENT.name), { what: 'client found' });
+  // A single matching client opens on its own; otherwise expand its orders.
+  const toggle = clients.getByRole('button', { name: new RegExp(`^(Show|Hide) 3 orders for ${CLIENT.name}$`) });
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await page.waitForFunction(() => document.querySelector('#sr-clients .sr-toggle')?.getAttribute('aria-expanded') === 'true');
+  const orders = clients.locator('.sr-drop a.sr-row');
+  await orders.first().waitFor();
+  check((await orders.count()) === 3, `the client's 3 orders should show, saw ${await orders.count()}`);
+  await shoot(page, pass, 'search-client', problems);
+
+  await box.fill('Jordan');
+  const items = page.locator('#sr-items');
+  await waitForText(items, new RegExp(ITEM.description), { what: 'item found' });
+  await shoot(page, pass, 'search-item', problems);
+}
+
+async function listsStep(page, pass, problems, firstProfit) {
   step('lists: sales, clients, trips');
   await go(page, '#/sales');
   await waitForText(page.locator('.card-title'), /^3 sales$/, { what: 'sales count' });
+  if (isPhone(page)) {
+    await page.locator('a.sale-row').first().waitFor();
+    check((await page.locator('a.sale-row').count()) === 3, 'phones list sales as rows');
+    check(await page.locator('.sales-table').isHidden(), 'no sales table on a phone');
+  } else {
+    await page.locator('.sales-table tbody tr').first().waitFor();
+  }
   await shoot(page, pass, 'sales', problems);
+
   await go(page, '#/clients');
-  await waitForText(page.locator('tbody'), new RegExp(CLIENT.name), { what: 'clients list' });
+  if (isPhone(page)) await waitForText(page.locator('ul.lr-list'), new RegExp(CLIENT.name), { what: 'clients list' });
+  else await waitForText(page.locator('tbody'), new RegExp(CLIENT.name), { what: 'clients table' });
   await shoot(page, pass, 'clients', problems);
+
+  step('client profile: lifetime profit and average profit per order');
+  await page.locator(isPhone(page) ? 'ul.lr-list a' : 'tbody tr', { hasText: CLIENT.name }).first().click();
+  await page.waitForFunction(() => /^#\/clients\/[0-9a-f-]{36}$/.test(window.location.hash));
+  await waitForText(stat(page, 'Orders').value, '3', { what: 'orders' });
+  const lifetime = parseMoney(await waitForText(stat(page, 'Lifetime profit').value, /^−?£[\d,]+\.\d\d/, { what: 'lifetime profit' }));
+  const average = parseMoney(await waitForText(stat(page, 'Avg profit per order').value, /^−?£[\d,]+\.\d\d/, { what: 'avg profit per order' }));
+  check(Math.abs(average - lifetime / 3) <= 0.01, `avg per order ${average} should be lifetime ${lifetime} ÷ 3`);
+  check(lifetime > firstProfit, `lifetime profit ${lifetime} should include the first sale's ${firstProfit} and more`);
+  await waitForText(stat(page, 'Avg profit per order').sub, /^\d+ items across 3 orders$/, { what: 'items across orders' });
+
   step('trips: plan and save a drive to the client from the Trips page');
   await go(page, '#/trips');
   await waitForText(stat(page, 'Trips').value, '2', { what: 'trips count' });
@@ -432,7 +606,7 @@ async function listsStep(page, pass, problems) {
   await planner.getByRole('button', { name: 'Save trip' }).click();
   await expectToast(page, /^Trip saved — £\d+\.\d\d cash cost\.$/);
   await waitForText(stat(page, 'Trips').value, '3', { what: 'trips after saving' });
-  await waitForText(page.locator('tbody'), /Kit drop at the training ground/, { what: 'saved trip in the list' });
+  await waitForText(page.locator(isPhone(page) ? 'ul.lr-list' : 'tbody').first(), /Kit drop at the training ground/, { what: 'saved trip in the list' });
   await shoot(page, pass, 'trips', problems);
 }
 
@@ -444,19 +618,30 @@ async function deleteStep(page, pass, problems, stockSale) {
   await page.waitForFunction(() => window.location.hash === '#/sales');
   await go(page, '#/stock');
   await waitForText(stat(page, 'Units on hand').value, STOCK.qty, { what: 'stock back after deleting the sale' });
-  await page.getByRole('button', { name: `Delete ${STOCK.name}` }).click();
+  if (isPhone(page)) {
+    // Phones: the row opens the editor sheet, which holds Delete.
+    await page.getByRole('button', { name: `Edit ${STOCK.name}` }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: `Delete ${STOCK.name}` }).click();
+  }
   await confirm(page, 'Delete');
   await expectToast(page, `Deleted ${STOCK.name}.`);
   await waitForText(page.locator('.empty-title'), 'No stock yet', { what: 'stock emptied' });
 
   await go(page, '#/trips');
-  await page.getByRole('button', { name: /^Delete trip / }).first().click();
+  if (isPhone(page)) {
+    await page.getByRole('button', { name: /^Edit trip Kit drop/ }).click();
+    await page.locator('.trips-planner').getByRole('button', { name: 'Delete', exact: true }).click();
+  } else {
+    await page.getByRole('button', { name: /^Delete trip / }).first().click();
+  }
   await confirm(page, 'Delete trip');
   await expectToast(page, 'Trip deleted.');
   await waitForText(stat(page, 'Trips').value, '2', { what: 'trips after delete' });
 
   await go(page, '#/clients');
-  await page.locator('tbody tr', { hasText: CLIENT.name }).first().click();
+  await page.locator(isPhone(page) ? 'ul.lr-list a' : 'tbody tr', { hasText: CLIENT.name }).first().click();
   await page.waitForFunction(() => /^#\/clients\/[0-9a-f-]{36}$/.test(window.location.hash));
   await page.getByRole('button', { name: 'Delete client' }).click();
   await confirm(page, 'Delete client');
@@ -464,7 +649,7 @@ async function deleteStep(page, pass, problems, stockSale) {
   await page.waitForFunction(() => window.location.hash === '#/clients');
   await go(page, '#/sales');
   await waitForText(page.locator('.card-title'), /^2 sales$/, { what: 'sales kept after deleting their client' });
-  await waitForText(page.locator('tbody'), /No client/, { what: 'sales unlinked from the deleted client' });
+  await waitForText(page.locator(isPhone(page) ? '.sales-rows' : '.sales-table tbody'), /No client/, { what: 'sales unlinked from the deleted client' });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -549,10 +734,11 @@ async function runJourney(browser, baseUrl, pass) {
   await guard(() => dashboardPendingStep(page, pass.name, problems));
   await guard(() => driveStep(page, pass.name, problems, saleHash));
   await guard(() => markBoughtStep(page));
-  await guard(() => paidAndDeliveredStep(page, pass.name, problems));
+  const firstProfit = await guard(() => paidAndDeliveredStep(page, pass.name, problems));
   await guard(() => checkerStep(page, pass.name, problems));
   const stockSale = await guard(() => stockStep(page, pass.name, problems));
-  await guard(() => listsStep(page, pass.name, problems));
+  await guard(() => searchStep(page, pass.name, problems));
+  await guard(() => listsStep(page, pass.name, problems, firstProfit));
   // Kept for the dark-mode pass: the data as it stands before the deletes.
   const storage = await context.storageState();
   await guard(() => deleteStep(page, pass.name, problems, stockSale));
@@ -596,12 +782,12 @@ async function runDark(browser, baseUrl, storage) {
     await shoot(page, name, screen, problems);
   }
   await go(page, '#/sales');
-  await page.locator('tbody tr').first().click();
+  await page.locator('a.sale-row').first().click();
   await page.waitForFunction(() => /^#\/sales\/[0-9a-f-]{36}$/.test(window.location.hash));
-  await waitForText(stat(page, 'Profit').value, moneyPattern, { what: 'dark sale page' });
+  await waitForText(fig(page, 'Profit').value, moneyPattern, { what: 'dark sale page' });
   await shoot(page, name, 'sale', problems);
   await go(page, '#/clients');
-  await page.locator('tbody tr').first().click();
+  await page.locator('ul.lr-list a').first().click();
   await page.waitForFunction(() => /^#\/clients\/[0-9a-f-]{36}$/.test(window.location.hash));
   await page.locator('.page').first().waitFor();
   await shoot(page, name, 'client', problems);
@@ -627,7 +813,9 @@ async function main() {
   const problems = [];
   let failed = null;
   try {
-    for (const pass of PASSES) {
+    // E2E_ONLY=phone or E2E_ONLY=laptop runs one pass (the dark pass follows the phone's).
+    const only = (process.env.E2E_ONLY ?? '').split(',').filter(Boolean);
+    for (const pass of PASSES.filter((entry) => !only.length || only.includes(entry.name))) {
       const result = await runJourney(browser, server.url, pass);
       problems.push(...result.problems);
       if (pass.isMobile) problems.push(...(await runDark(browser, server.url, result.storage)).problems);

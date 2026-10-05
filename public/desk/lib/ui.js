@@ -108,7 +108,14 @@ function installViewportTracking() {
   const busy = () => pointers.size > 0 || now() - lastRelease < SETTLE_MS;
   const flush = () => {
     waitTimer = 0;
-    if (pointers.size) return; // the release handler flushes again
+    if (pointers.size) {
+      // The release handler flushes again; a pointerup lost outside the window can't stall it.
+      waitTimer = window.setTimeout(() => {
+        pointers.clear();
+        flush();
+      }, 4000);
+      return;
+    }
     const left = SETTLE_MS - (now() - lastRelease);
     if (left > 0) {
       waitTimer = window.setTimeout(flush, left);
@@ -134,7 +141,7 @@ function installViewportTracking() {
       return;
     }
     waiting.push(entry);
-    if (!waitTimer && !pointers.size) flush();
+    if (!waitTimer) flush();
   };
   const cancelSettled = (key) => {
     waiting = waiting.filter((entry) => entry.key !== key);
@@ -146,7 +153,10 @@ function installViewportTracking() {
   const release = (event) => {
     pointers.delete(event.pointerId);
     lastRelease = now();
-    if (!pointers.size && waiting.length && !waitTimer) flush();
+    if (!pointers.size && waiting.length) {
+      window.clearTimeout(waitTimer);
+      flush();
+    }
   };
   window.addEventListener('pointerup', release, true);
   window.addEventListener('pointercancel', release, true);
@@ -584,6 +594,12 @@ export function useField() {
 export function Field({ label, hint, error, required = false, optional = false, id, children, class: classAttr, className }) {
   const autoId = useId('field');
   const ownerRef = useRef(null);
+  // When the control inside is swapped for another (an Input becoming a Select as a form
+  // changes shape), the new one renders before the old one unmounts and so can't claim the id
+  // yet; the old one's release re-renders the field so the new control picks up the label.
+  const [, setReleased] = useState(0);
+  const releaseRef = useRef(null);
+  if (!releaseRef.current) releaseRef.current = () => setReleased((n) => n + 1);
   const controlId = id ?? autoId;
   const showError = hasContent(error) && error !== true;
   // The error takes the hint's place, so a field never grows two message lines at once.
@@ -594,6 +610,7 @@ export function Field({ label, hint, error, required = false, optional = false, 
     describedBy: cx(errorId, hintId) || undefined,
     invalid: Boolean(error),
     ownerRef,
+    release: releaseRef.current,
   };
   return html`<div class=${cx('field', error && 'has-error', classAttr, className)}>
     ${hasContent(label) && html`<label class="field-label" for=${controlId}>
@@ -616,9 +633,13 @@ function useFieldControl(props) {
   const owns = Boolean(owner) && (owner.current === null || owner.current === token);
   if (owns) owner.current = token;
 
+  const release = field?.release;
   useEffect(() => () => {
-    if (owner && owner.current === token) owner.current = null;
-  }, [owner, token]);
+    if (owner && owner.current === token) {
+      owner.current = null;
+      release?.();
+    }
+  }, [owner, token, release]);
 
   if (!owns) return {};
   return {
