@@ -195,6 +195,8 @@ describe('memory store: settings', () => {
       round_trip_default: true,
       handover_minutes_default: 15,
       target_margin: 0.25,
+      logo_url: null,
+      brand_color: null,
     });
     assert.ok(Object.isFrozen(DEFAULT_SETTINGS));
   });
@@ -930,6 +932,68 @@ describe('memory store: server API calls', () => {
 });
 
 // ---------------------------------------------------------------------------------------------
+// Branding: logo and brand colour
+// ---------------------------------------------------------------------------------------------
+
+// The 1×1 transparent PNG every browser knows.
+const TINY_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+const pngBlob = () => new Blob([TINY_PNG], { type: 'image/png' });
+
+describe('memory store: branding', () => {
+  test('brand_color is checked as #RRGGBB', async () => {
+    const { store } = await memoryStore();
+    const saved = await store.settings.save({ brand_color: '#0F6E74', business_name: 'Umi Sneakers' });
+    assert.equal(saved.brand_color, '#0F6E74');
+    assert.equal(saved.business_name, 'Umi Sneakers');
+    await rejectsWith(store.settings.save({ brand_color: 'teal' }), 'Use a colour like #1F4B85.');
+    await rejectsWith(store.settings.save({ brand_color: '#0F6E7' }), 'Use a colour like #1F4B85.');
+    assert.equal((await store.settings.save({ brand_color: '' })).brand_color, null, 'clearing goes back to the default');
+  });
+
+  test('uploadLogo() keeps the image as a data: URL with its size, and survives a reload', async () => {
+    const { store, storage } = await memoryStore();
+    const changes = watch(store);
+    const saved = await store.settings.uploadLogo(pngBlob(), { width: 512, height: 171 });
+    assert.equal(saved.logo_url, `data:image/png;base64,${TINY_PNG.toString('base64')}#w=512&h=171`);
+    assert.equal(changes.count, 1);
+    assert.equal(savedDatabase(storage).desk_settings[0].logo_url, saved.logo_url);
+    const reloaded = await createStore({ mode: 'memory', storage, fetchImpl: refuseFetch });
+    assert.equal((await reloaded.settings.get()).logo_url, saved.logo_url);
+
+    const replaced = await store.settings.uploadLogo(new Blob([TINY_PNG], { type: 'image/webp' }));
+    assert.match(replaced.logo_url, /^data:image\/webp;base64,[^#]+$/, 'no size fragment when the size is unknown');
+  });
+
+  test('uploadLogo() refuses anything but a PNG, JPEG or WebP of at most 1 MB', async () => {
+    const { store } = await memoryStore();
+    await rejectsWith(store.settings.uploadLogo(new Blob(['<svg/>'], { type: 'image/svg+xml' })), 'Use a PNG, JPG or WebP image.');
+    await rejectsWith(store.settings.uploadLogo(new Blob(['hello'], { type: 'text/plain' })), 'Use a PNG, JPG or WebP image.');
+    await rejectsWith(store.settings.uploadLogo(new Blob([], { type: 'image/png' })), 'Use a PNG, JPG or WebP image.');
+    await rejectsWith(store.settings.uploadLogo(new Blob([new Uint8Array(1_048_577)], { type: 'image/png' })), 'That logo is over 1 MB — pick a smaller image.');
+    await rejectsWith(store.settings.uploadLogo(null), 'Choose an image for your logo.');
+    await rejectsWith(store.settings.uploadLogo('logo.png'), 'Choose an image for your logo.');
+    assert.equal((await store.settings.get()).logo_url, null);
+  });
+
+  test('removeLogo() clears logo_url and keeps the other settings', async () => {
+    const { store } = await memoryStore();
+    await store.settings.save({ business_name: 'Umi Sneakers', brand_color: '#8C1D40' });
+    await store.settings.uploadLogo(pngBlob());
+    const saved = await store.settings.removeLogo();
+    assert.equal(saved.logo_url, null);
+    assert.equal(saved.business_name, 'Umi Sneakers');
+    assert.equal(saved.brand_color, '#8C1D40');
+  });
+
+  test('settings.save() refuses a logo_url that is not https or an image data: URL', async () => {
+    const { store } = await memoryStore();
+    await rejectsWith(store.settings.save({ logo_url: 'javascript:alert(1)' }), "That logo can't be saved — upload it again.");
+    await rejectsWith(store.settings.save({ logo_url: `https://x.example/${'a'.repeat(2050)}` }), "That logo can't be saved — upload it again.");
+    assert.equal((await store.settings.save({ logo_url: 'https://x.example/logo.png' })).logo_url, 'https://x.example/logo.png');
+  });
+});
+
+// ---------------------------------------------------------------------------------------------
 // Supabase mode against a recording fake client
 // ---------------------------------------------------------------------------------------------
 
@@ -953,6 +1017,26 @@ function fakeSupabase({ session = SESSION, respond = () => ({ data: null, error:
     },
     fireAuth(event, nextSession) {
       authListener(event, nextSession);
+    },
+    storageCalls: [],
+    storageFiles: [],
+    storageRespond: {},
+    storage: {
+      from(bucket) {
+        const record = (method, ...args) => {
+          client.storageCalls.push([bucket, method, ...args]);
+          return client.storageRespond[method]?.(...args) ?? { data: null, error: null };
+        };
+        return {
+          upload: async (...args) => record('upload', ...args),
+          getPublicUrl: (path) => ({ data: { publicUrl: `https://project.supabase.co/storage/v1/object/public/${bucket}/${path}` } }),
+          list: async (...args) => {
+            record('list', ...args);
+            return { data: client.storageFiles.map((name) => ({ name })), error: null };
+          },
+          remove: async (...args) => record('remove', ...args),
+        };
+      },
     },
     from(table) {
       const call = { table, chain: [] };
@@ -1082,12 +1166,16 @@ describe('supabase mode (fake client)', () => {
     assert.ok(select.includes('deal:deals') && select.includes('(id,number,title)'));
     assert.ok(select.includes('client:clients') && select.includes('(id,name)'));
     const orders = call.chain.filter(([name]) => name === 'order').map(([, column, options]) => [column, options.ascending]);
-    assert.deepEqual(orders, [['trip_date', false], ['created_at', false]]);
+    assert.deepEqual(orders, [['trip_date', false], ['created_at', false], ['id', true]]);
   });
 
   test('database errors become human sentences', async () => {
     const cases = [
-      [{ code: '42501', message: 'new row violates row-level security policy for table "deals"' }, 403, "You don't have access to that record."],
+      [{ code: '42501', message: 'new row violates row-level security policy for table "deals"' }, 403, 'That client no longer exists — reload the page.'],
+      [{ code: '42501', message: 'new row violates row-level security policy for table "payments"' }, 403, 'That sale no longer exists — reload the page.'],
+      [{ code: '42501', message: 'new row violates row-level security policy for table "deal_items"' }, 403, 'That sale or stock item no longer exists — reload the page.'],
+      [{ code: '42501', message: 'new row violates row-level security policy for table "trips"' }, 403, 'That sale or client no longer exists — reload the page.'],
+      [{ code: '42501', message: 'permission denied for table clients' }, 403, "You don't have access to that record."],
       [{ code: '', message: 'TypeError: Failed to fetch' }, 0, "Can't reach the server — check your connection."],
       [{ code: '23514', message: 'new row for relation "deal_items" violates check constraint "deal_items_qty_positive"' }, 400, 'Quantity must be at least 1.'],
       [{ code: '23502', message: 'null value in column "name" of relation "clients" violates not-null constraint' }, 400, 'Name is required.'],
@@ -1173,5 +1261,88 @@ describe('supabase mode (fake client)', () => {
     await rejectsWith(store.api.route({ address: 'xyz' }, { address: 'SO16 7AY' }), "Couldn't find 'xyz'. Try a postcode.");
     reply = { ok: false, status: 502, json: async () => { throw new SyntaxError('Unexpected token <'); } };
     await rejectsWith(store.api.places('Southampton'), 'The server had a problem — try again in a moment.');
+  });
+
+  test('lists page through every row with .range(), not just the first 1000', async () => {
+    const page = (from, count) => Array.from({ length: count }, (_, i) => ({ id: `d${from + i}` }));
+    const respond = (call) => {
+      const [, from] = step(call, 'range');
+      return { data: page(from, from === 0 ? 1000 : 1), error: null, status: 200 };
+    };
+    const { store, client } = await supabaseStore({ respond });
+    const deals = await store.deals.list();
+    assert.equal(deals.length, 1001);
+    assert.deepEqual(client.calls.map((call) => step(call, 'range')), [['range', 0, 999], ['range', 1000, 1999]]);
+    for (const call of client.calls) assert.ok(step(call, 'order'), 'every page is ordered');
+
+    client.calls.length = 0;
+    await store.clients.list();
+    await store.stock.list({ includeArchived: true });
+    await store.trips.list();
+    assert.equal(client.calls.length, 6, 'two pages each');
+    const clientOrders = client.calls[0].chain.filter(([name]) => name === 'order').map(([, column]) => column);
+    assert.deepEqual(clientOrders, ['name', 'created_at', 'id'], 'a unique last key keeps pages from overlapping');
+  });
+
+  test('settings.uploadLogo() uploads to brand/<uid>/, saves the public URL, then removes older logos', async () => {
+    const stored = { owner: SESSION.user.id, logo_url: 'saved', updated_at: '2026-10-05T10:00:00Z' };
+    const { store, client } = await supabaseStore({ respond: () => ({ data: stored, error: null, status: 200 }) });
+    client.storageFiles = ['logo-1.png', 'logo-2.webp'];
+    const changes = watch(store);
+    const blob = pngBlob();
+    const saved = await store.settings.uploadLogo(blob, { width: 512, height: 171 });
+    assert.equal(saved.logo_url, 'saved');
+
+    const [upload, list, remove] = client.storageCalls;
+    assert.equal(upload[0], 'brand');
+    assert.equal(upload[1], 'upload');
+    assert.match(upload[2], new RegExp(`^${SESSION.user.id}/logo-\\d{13}\\.png$`));
+    assert.equal(upload[3], blob);
+    assert.deepEqual(upload[4], { contentType: 'image/png', cacheControl: '31536000', upsert: false });
+    const [save] = client.calls;
+    assert.deepEqual(step(save, 'upsert'), [
+      'upsert',
+      { logo_url: `https://project.supabase.co/storage/v1/object/public/brand/${upload[2]}#w=512&h=171` },
+      { onConflict: 'owner' },
+    ]);
+    assert.deepEqual(list, ['brand', 'list', SESSION.user.id, { limit: 100 }]);
+    assert.deepEqual(remove, ['brand', 'remove', [`${SESSION.user.id}/logo-1.png`, `${SESSION.user.id}/logo-2.webp`]]);
+    assert.equal(changes.count, 1);
+  });
+
+  test('settings.uploadLogo() keeps the old logo when saving fails, and explains upload errors', async () => {
+    const { store, client } = await supabaseStore({
+      respond: () => ({ data: null, error: { code: '', message: 'TypeError: Failed to fetch' }, status: 0 }),
+    });
+    client.storageFiles = ['logo-1.png'];
+    await rejectsWith(store.settings.uploadLogo(pngBlob()), "Can't reach the server — check your connection.");
+    const removes = client.storageCalls.filter(([, method]) => method === 'remove');
+    assert.equal(removes.length, 1);
+    assert.equal(removes[0][2].length, 1);
+    assert.match(removes[0][2][0], /\/logo-\d{13}\.png$/, 'only the new file is deleted');
+
+    client.storageCalls.length = 0;
+    client.calls.length = 0;
+    client.storageRespond.upload = () => ({ data: null, error: { statusCode: '413', message: 'The object exceeded the maximum allowed size' } });
+    await rejectsWith(store.settings.uploadLogo(pngBlob()), 'That logo is over 1 MB — pick a smaller image.');
+    assert.equal(client.calls.length, 0, 'nothing saved');
+    client.storageRespond.upload = () => ({ data: null, error: { statusCode: '403', message: 'new row violates row-level security policy' } });
+    await rejectsWith(store.settings.uploadLogo(pngBlob()), "You don't have access to that record.");
+    await rejectsWith(store.settings.uploadLogo(new Blob(['x'], { type: 'image/gif' })), 'Use a PNG, JPG or WebP image.');
+
+    client.fireAuth('SIGNED_OUT', null);
+    await rejectsWith(store.settings.uploadLogo(pngBlob()), "You're signed out — sign in again.");
+  });
+
+  test('settings.removeLogo() clears logo_url, then deletes the files', async () => {
+    const { store, client } = await supabaseStore({ respond: () => ({ data: { logo_url: null }, error: null, status: 200 }) });
+    client.storageFiles = ['logo-1.png'];
+    const saved = await store.settings.removeLogo();
+    assert.equal(saved.logo_url, null);
+    assert.deepEqual(step(client.calls[0], 'upsert'), ['upsert', { logo_url: null }, { onConflict: 'owner' }]);
+    assert.deepEqual(client.storageCalls.at(-1), ['brand', 'remove', [`${SESSION.user.id}/logo-1.png`]]);
+
+    client.storageRespond.remove = () => { throw new Error('offline'); };
+    await store.settings.removeLogo(); // a failed tidy-up never fails the removal
   });
 });

@@ -114,8 +114,6 @@ const CSS = `
 
 /* The client form: sections with room to breathe, one column on phones, two from 640px. */
 .cl-form { width: 100%; max-width: 760px; }
-.cl-form .form-grid { gap: 18px 16px; }
-.cl-form .card-body { padding-top: 14px; padding-bottom: 18px; }
 .cl-form .input[list]::-webkit-calendar-picker-indicator { display: none !important; }
 /* iOS Safari gives date inputs an intrinsic width that ignores width:100% and spills over the
    next field; make it an ordinary block box. */
@@ -123,12 +121,14 @@ const CSS = `
 .cl-form .input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 .cl-section-note { margin: 0 0 14px; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
 .cl-addr-list { display: flex; flex-direction: column; gap: 12px; }
-.cl-addr { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 12px 14px 16px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); }
-.cl-addr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+.cl-addr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; margin: -6px -6px 0 0; }
 .cl-addr-title { color: var(--ink); font-size: 14px; font-weight: 600; }
 .cl-addr-fields { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .cl-addr-fields > * { min-width: 0; }
-.cl-form-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+@media (max-width: 519.98px) {
+  .cl-form .form-bar .btn { flex: 1 1 0; }
+  .cl-form .form-bar-summary:empty { display: none; }
+}
 .cl-hint-line { margin-top: 10px; }
 .cl-profile-stats .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cl-sale-sub { font-weight: 400; }
@@ -141,8 +141,6 @@ const CSS = `
 }
 @media (max-width: 639.98px) {
   .cl-actions .btn { flex: 1 1 calc(50% - 8px); }
-  .cl-form-foot { position: sticky; bottom: calc(var(--tabbar-h, 0px) + var(--safe-b, 0px) + 8px); z-index: 5; margin: 0 -4px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--surface); box-shadow: var(--shadow-2, 0 6px 20px rgba(0, 0, 0, 0.12)); }
-  .cl-form-foot .btn { flex: 1 1 0; }
 }
 `;
 
@@ -542,7 +540,7 @@ function AddressRows({ store, rows, onChange, problems }) {
   }
 
   return html`<div class="cl-addr-list">
-    ${rows.map((row, index) => html`<div key=${row.key} class="cl-addr">
+    ${rows.map((row, index) => html`<div key=${row.key} class="repeat-block">
       <div class="cl-addr-head">
         <span class="cl-addr-title">${clean(row.label) || `Address ${index + 1}`}</span>
         <${Button}
@@ -694,8 +692,6 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
   }
 
   const saveLabel = editing ? 'Save changes' : 'Add client';
-  // Shown in the page header on desktop and in the form's footer; a fresh set each time, as a
-  // vnode can't be mounted twice.
   const buttons = () => html`
     <${Button} onClick=${cancel} disabled=${saving}>Cancel<//>
     <${Button} kind="primary" type="submit" form=${formId} icon="check" loading=${saving}>${saving ? 'Saving…' : saveLabel}<//>`;
@@ -703,7 +699,7 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
     ? html`You already have a client called ${duplicate.name}. <a href=${`#/clients/${duplicate.id}`}>Open their profile</a>`
     : undefined;
 
-  return html`<${Page} title=${title} back=${back} actions=${html`<div class="row hide-mobile">${buttons()}</div>`}>
+  return html`<${Page} title=${title} back=${back}>
     <form id=${formId} ref=${formRef} class="cl-form stack" noValidate=${true} onSubmit=${submit} onKeyDown=${blockImplicitSubmit}>
       <${Card} title="Player">
         <div class="form-grid">
@@ -809,7 +805,10 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
         />
       <//>`}
 
-      <div class="cl-form-foot">${buttons()}</div>
+      <div class="form-bar">
+        <span class="form-bar-summary small muted">${dirty ? 'Unsaved changes' : ''}</span>
+        ${buttons()}
+      </div>
     </form>
   <//>`;
 }

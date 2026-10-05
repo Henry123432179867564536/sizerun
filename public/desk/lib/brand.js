@@ -118,10 +118,7 @@ function fromHsl([h, s, l]) {
 function shiftUntil(hex, step, ok) {
   const [h, s, l] = toHsl(hex);
   let current = hex;
-  for (let next = l; !ok(current) && next > 0 && next < 1;) {
-    next = Math.min(1, Math.max(0, next + step));
-    current = fromHsl([h, s, next]);
-  }
+  for (let i = 1; i <= 100 && !ok(current); i += 1) current = fromHsl([h, s, Math.min(1, Math.max(0, l + step * i))]);
   return current;
 }
 

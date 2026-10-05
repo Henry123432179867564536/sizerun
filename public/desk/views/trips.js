@@ -42,8 +42,6 @@ const PHONE_QUERY = '(max-width: 639.98px)';
 const CSS = `
 .trips-sub { font-weight: 400; }
 .trips-kpis .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trips-form-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
-.trips-form-foot .trips-delete { margin-right: auto; }
 .trips-period .segmented { width: 100%; }
 @media (min-width: 640px) {
   .trips-period .segmented { width: auto; }
@@ -444,11 +442,11 @@ function TripsScreen({ store, data, params, refreshError, onRetry }) {
               <${Select} value=${editor.meta.client_id} options=${[{ value: '', label: 'No client' }, ...clientOptions]} onChange=${onClientChange} />
             <//>
           </div>
-          <div class="trips-form-foot">
+          <div class="form-actions">
             ${editing && html`<${Button}
               kind="ghost"
               icon="trash"
-              class="trips-delete"
+              class="form-actions-start"
               loading=${busyId === editor.id}
               onClick=${() => { const trip = trips.find((t) => t.id === editor.id); if (trip) remove(trip); }}
             >Delete<//>`}
