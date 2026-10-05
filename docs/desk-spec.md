@@ -6,7 +6,7 @@ the item is bought ("expected cost"), then driving to drop it off. Desk answers,
 moment: what did I make, what am I still expecting to make, who owes me, what must I still
 buy, and was the drive worth it.
 
-It lives at **https://www.sizemill.com/desk/** beside the existing app at `/` (left untouched).
+It lives at **https://www.sizemill.com/desk/**; `/` redirects there (vercel.json). The original single-page app and its /admin dashboard were removed.
 Currency is GBP, distances are miles, fuel economy is UK mpg (imperial gallon = 4.54609 L),
 fuel prices are pence per litre (ppl). Locale `en-GB`, dates shown `5 Oct 2026`.
 
@@ -28,7 +28,6 @@ This file is the contract between everyone building Desk. Names below are exact.
 - Leaflet 1.9.4 from cdnjs (`leaflet.min.css`, `leaflet.min.js`, global `L`) with OpenStreetMap tiles and attribution.
 - Supabase project URL `https://qromnxxviflpahimjhgq.supabase.co`, publishable key
   `sb_publishable_u1ywcwe7Wqb9s6Z55VskIQ_pepm1rYk` (public by design; RLS protects data).
-  Same origin as the old app, so a session signed in there is already signed in here.
 - Tests: Node's built-in runner, `node --test test/`. No npm dependencies. Root `package.json`
   is `{ "name": "sizemill", "private": true, "type": "module", "scripts": { "test": "node --test \"test/*.test.js\"" } }` (Node 22 runs a bare directory argument as a script, so the glob is quoted).
 

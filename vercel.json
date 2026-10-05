@@ -10,12 +10,6 @@
       "permanent": false
     }
   ],
-  "rewrites": [
-    {
-      "source": "/admin",
-      "destination": "/api/dashboard"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
