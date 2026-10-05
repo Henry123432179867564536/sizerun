@@ -1199,7 +1199,7 @@ function SaleRow({ row, navigate }) {
         ${deal.client?.club && html`<span class="muted truncate" style="font-weight:400">${deal.client.club}</span>`}
       </div>
       <div class="small muted truncate" style="max-width:340px;font-weight:400">
-        <span class="mono">${dealNumber(deal.number)}</span> · ${deal.client && deal.title ? `${deal.title} · ` : ''}${itemsSummary(deal.items)}${unitCount(deal.items) > 1 ? ` · ${unitCount(deal.items)} items` : ''}
+        <span class="mono">${dealNumber(deal.number)}</span> · ${unitCount(deal.items) > 1 ? `${unitCount(deal.items)} items · ` : ''}${deal.client && deal.title ? `${deal.title} · ` : ''}${itemsSummary(deal.items)}
       </div>
       ${toBuy > 0 && !cancelled && html`<span class="pill pill-warn">${toBuy} to buy</span>`}
     </td>
