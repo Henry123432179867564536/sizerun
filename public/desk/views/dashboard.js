@@ -27,6 +27,7 @@ import {
 import { EPS, dealNumber, dealTotals, itemTotals, stockLevels, summarise } from '../lib/calc.js';
 import { date, dateShort, duration, miles, money, moneyShort, monthLabel, plural, relDays, todayISO } from '../lib/format.js';
 import { BarChart } from '../components/charts.js';
+import { usePhone } from './clients.js';
 
 const CSS = `
 .dash-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
@@ -34,10 +35,19 @@ const CSS = `
 .dash-range { color: var(--ink-3); font-size: 13px; }
 .dash-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .dash-col { display: contents; }
-.dash-needs { order: 1; }
-.dash-chart { order: 2; }
-.dash-top { order: 3; }
-.dash-recent { order: 4; }
+/* Phones: the two profit figures, then what needs doing, then the rest. */
+.dash-key { order: 1; }
+.dash-needs { order: 2; }
+.dash-kpis2 { order: 3; }
+.dash-chart { order: 4; }
+.dash-recent { order: 5; }
+.dash-top { order: 6; }
+.dash-kpis .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-key { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dash-key .stat-value { font-size: 26px; }
+.dash-kpis2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dash-kpis2 .stat { padding: 10px 12px; }
+.dash-kpis2 .stat-value { font-size: 18px; }
 .dash-group + .dash-group { border-top: 1px solid var(--line); }
 .dash-group-head { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 16px 4px; color: var(--ink); font-size: 13px; font-weight: 600; }
 .dash-group-head .icon { color: var(--ink-3); }
@@ -54,8 +64,12 @@ const CSS = `
 .dash-chart-totals { margin-bottom: 10px; color: var(--ink-2); font-size: 13px; }
 .dash-chart-totals strong { color: var(--ink); font-weight: 600; }
 .dash-chart-empty { display: flex; align-items: center; justify-content: center; min-height: 120px; border: 1px dashed var(--line-2); border-radius: var(--r-ctl); color: var(--ink-3); font-size: 13px; text-align: center; padding: 16px; }
+@media (max-width: 639.98px) {
+  .dash-range { display: none; }
+}
 @media (min-width: 640px) {
   .dash-toolbar .segmented { width: auto; }
+  .dash-kpis2 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 @media (min-width: 1100px) {
   .dash-grid { grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); align-items: start; gap: 20px; }
@@ -387,19 +401,16 @@ async function loadDashboard(store) {
 
 function Kpis({ kpis }) {
   const pendingSub = kpis.toSource > 0
-    ? `${kpis.pendingEstimated ? 'Estimated · ' : ''}${plural(kpis.toSource, 'item')} to buy`
+    ? `${plural(kpis.toSource, 'item')} to buy${kpis.pendingEstimated ? ' · est.' : ''}`
     : kpis.pendingEstimated
       ? 'Estimated'
       : kpis.pendingCount ? `${plural(kpis.pendingCount, 'sale')} in progress` : 'Nothing in progress';
-  const drivingSub = kpis.drivingMinutes > 0
-    ? `${duration(kpis.drivingMinutes)} · ${miles(kpis.miles)}`
-    : 'No drives logged';
 
-  return html`<div class="kpis dash-kpis">
+  return html`<div class="kpis dash-kpis dash-key">
     <${Stat}
       label="Profit realised"
       value=${wholePounds(kpis.realised)}
-      sub=${kpis.realisedCount ? `${plural(kpis.realisedCount, 'sale')} delivered and paid` : 'Nothing delivered and paid yet'}
+      sub=${kpis.realisedCount ? `${plural(kpis.realisedCount, 'sale')} done` : 'None done yet'}
       tone=${kpis.realised < -EPS ? 'loss' : 'gain'}
       href="#/sales?tab=realised"
     />
@@ -410,6 +421,14 @@ function Kpis({ kpis }) {
       tone=${kpis.pending < -EPS ? 'loss' : 'warn'}
       href=${kpis.toSource > 0 ? '#/sales?tab=tobuy' : '#/sales?tab=pending'}
     />
+  </div>`;
+}
+
+function MoreKpis({ kpis }) {
+  const drivingSub = kpis.drivingMinutes > 0
+    ? `${duration(kpis.drivingMinutes)} · ${miles(kpis.miles)}`
+    : 'No drives yet';
+  return html`<div class="kpis dash-kpis dash-kpis2">
     <${Stat} label="Revenue" value=${wholePounds(kpis.revenue)} sub=${plural(kpis.count, 'sale')} href="#/sales" />
     <${Stat}
       label="Owed to you"
@@ -456,7 +475,7 @@ function ProfitChart({ chart }) {
   <//>`;
 }
 
-function NeedsGroup({ icon, title, count, note, moreHref, children }) {
+function NeedsGroup({ icon, title, count, note, moreHref, limit = NEEDS_LIMIT, children }) {
   return html`<section class="dash-group">
     <h3 class="dash-group-head">
       <${Icon} name=${icon} size=${16} />
@@ -465,7 +484,7 @@ function NeedsGroup({ icon, title, count, note, moreHref, children }) {
       ${note && html`<span class="dash-group-note">${note}</span>`}
     </h3>
     <div class="list">${children}</div>
-    ${moreHref && count > NEEDS_LIMIT && html`<a class="dash-more" href=${moreHref}>
+    ${moreHref && count > limit && html`<a class="dash-more" href=${moreHref}>
       See all ${count}<${Icon} name="chevron-right" size=${16} />
     </a>`}
   </section>`;
@@ -478,7 +497,7 @@ function Aside({ value, tone, sub }) {
   </div>`;
 }
 
-function NeedsYou({ needs }) {
+function NeedsYou({ needs, limit = NEEDS_LIMIT }) {
   const { toBuy, ready, unpaid, birthdays } = needs;
   const total = toBuy.length + ready.length + unpaid.length + birthdays.length;
 
@@ -499,13 +518,14 @@ function NeedsYou({ needs }) {
       count=${toBuy.length}
       note=${`${wholePounds(needs.toBuyCost)} expected`}
       moreHref="#/sales?tab=tobuy"
+      limit=${limit}
     >
-      ${toBuy.slice(0, NEEDS_LIMIT).map(({ deal, item, cost }) => html`<a key=${item.id} class="list-item" href=${saleHref(deal)}>
+      ${toBuy.slice(0, limit).map(({ deal, item, cost }) => html`<a key=${item.id} class="list-item" href=${saleHref(deal)}>
         <div class="list-main">
           <div class="list-title">${itemLabel(item)}</div>
-          <div class="list-sub">${joinParts(clientName(deal), dealNumber(deal.number), deal.due_date && `due ${relDays(deal.due_date)}`)}</div>
+          <div class="list-sub">${joinParts(clientName(deal), dealNumber(deal.number))}</div>
         </div>
-        <${Aside} value=${cost} sub="expected cost" />
+        <${Aside} value=${cost} sub=${deal.due_date ? `due ${relDays(deal.due_date)}` : null} />
       </a>`)}
     <//>`}
 
@@ -528,8 +548,9 @@ function NeedsYou({ needs }) {
       count=${unpaid.length}
       note=${`${wholePounds(unpaid.reduce((sum, row) => sum + row.totals.balance, 0))} to collect`}
       moreHref="#/sales?tab=unpaid"
+      limit=${limit}
     >
-      ${unpaid.slice(0, NEEDS_LIMIT).map(({ deal, totals }) => html`<a key=${deal.id} class="list-item" href=${saleHref(deal)}>
+      ${unpaid.slice(0, limit).map(({ deal, totals }) => html`<a key=${deal.id} class="list-item" href=${saleHref(deal)}>
         <div class="list-main">
           <div class="list-title">${clientName(deal)}</div>
           <div class="list-sub">${joinParts(dealNumber(deal.number), `sold ${relDays(deal.sale_date)}`)}</div>
@@ -598,8 +619,8 @@ function RecentSales({ rows }) {
             <div class="list-sub">${joinParts(dealSummary(deal), dateShort(deal.sale_date))}</div>
           </div>
           <div class="list-aside">
-            <${Money} value=${totals.netProfit} tone=${cancelled ? 'muted' : 'auto'} class="strong" />${!cancelled && totals.certainty === 'estimated' && html` <span class="pill pill-warn">est.</span>`}
-            <span class="dash-aside-badge"><${Badge} tone=${status.tone}>${status.label}<//></span>
+            <${Money} value=${totals.netProfit} tone=${cancelled ? 'muted' : 'auto'} class="strong" />${!cancelled && totals.certainty === 'estimated' && html`<span class="tone-warn small"> est.</span>`}
+            <span class=${`dash-aside-sub tone-${status.tone === 'neutral' ? 'muted' : status.tone}`}>${status.label}</span>
           </div>
         </a>`;
       })}
@@ -625,6 +646,7 @@ function Welcome({ needs }) {
 
 export default function DashboardView({ store }) {
   const [period, setPeriod] = useState(readPeriod);
+  const phone = usePhone();
   const { data, error, loading, reload } = useStoreData(store, loadDashboard);
   const today = todayISO();
   const model = useMemo(() => (data ? buildDashboard(data, period, today) : null), [data, period, today]);
@@ -671,15 +693,15 @@ export default function DashboardView({ store }) {
       <span class="dash-range">${rangeLabel(model.range)}</span>
     </div>
 
-    <${Kpis} kpis=${model.kpis} />
-
     <div class="dash-grid">
       <div class="dash-col">
+        <${Kpis} kpis=${model.kpis} />
+        <${MoreKpis} kpis=${model.kpis} />
         <${ProfitChart} chart=${model.chart} />
         <${RecentSales} rows=${model.recent} />
       </div>
       <div class="dash-col">
-        <${NeedsYou} needs=${model.needs} />
+        <${NeedsYou} needs=${model.needs} limit=${phone ? 3 : NEEDS_LIMIT} />
         <${TopClients} clients=${model.topClients} periodLabel=${periodLabel} />
       </div>
     </div>

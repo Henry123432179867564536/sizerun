@@ -7,7 +7,12 @@
             .row (.row-between / .row-end / .row-top / .row-nowrap)   inline flow, wraps
             .grid + .cols-2 / .cols-3 / .cols-4 responsive columns (1 → 2 at 640 → 3/4 at 1100)
             .kpis                               row of <Stat>s: 2 per row on phones, then auto-fit
-            .form-grid (+ .cols-3)              Fields: 1 column, 2 from 640px; .span-all = full width
+            .fields / .form-grid (+ .cols-3)    Fields: 1 column, 2 from 520px; .span-all = full width
+            .field-pair                         two short fields side by side even on a phone
+            .form-section (+ -title / -sub)     titled group of fields; 24px + divider between groups
+            .repeat-block                       one item / address / cost inside a repeating list
+            .form-actions (+ .form-actions-start)   [Delete] … [Cancel] [Save] footer
+            .form-bar (+ .form-bar-summary)     sticky save bar above the tab bar
             .toolbar                            search + filters/buttons; the .search grows, wraps
             .spacer                             flex: 1 inside a .row / .toolbar
    Surface  .card (prefer the Card component)   .banner + .banner-signal/-gain/-warn/-loss
@@ -15,6 +20,9 @@
    Data     .table inside .table-wrap           under 640px every row becomes a stacked card:
               give each <td data-label="Revenue">, mark the headline cell td.cell-primary and a
               buttons cell td.cell-actions; .num right-aligns; tr.is-clickable for row links.
+              Phones show two lines: the cell-primary + the key figure (td.cell-key, else the
+              first td.num) on line 1, the other cells as "Label value" on line 2;
+              td.cell-low (or .hide-phone) is dropped on phones.
               Put tables and lists in <Card pad=${false}>.
             .list > .list-item                  rows with .list-main (.list-title + .list-sub)
                                                 and .list-aside (right-hand figures); a.list-item taps

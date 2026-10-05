@@ -76,6 +76,30 @@ const within = (column, min, max) => (row) => isNull(row[column]) || (row[column
 const bothOrNeither = (a, b) => (row) => isNull(row[a]) === isNull(row[b]);
 
 const FUEL_TYPES = ['E10', 'E5', 'B7', 'SDV'];
+
+const HEX_COLOR_PATTERN = /^#[0-9A-Fa-f]{6}$/;
+const BRAND_COLOR_MESSAGE = 'Use a colour like #1F4B85.';
+const LOGO_URL_MAX = 2048;
+const LOGO_DATA_URL_MAX = 1_500_000;
+function validLogoUrl(url) {
+  const value = String(url);
+  if (value.startsWith('data:image/')) return value.length <= LOGO_DATA_URL_MAX;
+  return value.startsWith('https://') && value.length <= LOGO_URL_MAX;
+}
+
+// Logos (spec: Storage bucket 'brand', '<uid>/logo-<ms>.<ext>', png/jpeg/webp, at most 1 MB).
+const LOGO_BUCKET = 'brand';
+const LOGO_MAX_BYTES = 1_048_576;
+const LOGO_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+const LOGO_MESSAGES = Object.freeze({
+  notImage: 'Use a PNG, JPG or WebP image.',
+  tooBig: 'That logo is over 1 MB — pick a smaller image.',
+  uploadFailed: "Couldn't upload your logo — try again.",
+});
+
+// PostgREST's default "Max rows" (Supabase API settings). Lists page through results this many
+// rows at a time; if Max rows is ever lowered below this, lists would still be cut short.
+const PAGE_SIZE = 1000;
 const FUEL_TYPE_MESSAGE = 'Fuel type must be E10, E5, B7 or SDV.';
 
 // What to say when a foreign key points at a row that is gone, by parent table.
@@ -83,6 +107,15 @@ const MISSING_PARENT = {
   clients: 'That client no longer exists.',
   deals: 'That sale no longer exists.',
   stock_items: 'That stock item no longer exists.',
+};
+
+// A row-level security refusal on insert/update, by table, in the same words as MISSING_PARENT.
+const RLS_PARENT_MESSAGES = {
+  deals: `${MISSING_PARENT.clients.slice(0, -1)} — reload the page.`,
+  payments: `${MISSING_PARENT.deals.slice(0, -1)} — reload the page.`,
+  deal_costs: `${MISSING_PARENT.deals.slice(0, -1)} — reload the page.`,
+  deal_items: 'That sale or stock item no longer exists — reload the page.',
+  trips: 'That sale or client no longer exists — reload the page.',
 };
 
 // `key`: primary key column. `created`/`updated`: whether the table has created_at/updated_at.
@@ -107,6 +140,10 @@ const SCHEMA = {
       round_trip_default: boolean({ notNull: true, default: true, label: 'Round trip' }),
       handover_minutes_default: integer({ notNull: true, default: 15, label: 'Handover minutes' }),
       target_margin: numeric(5, 2, { notNull: true, default: 0.25 }),
+      // Branding: the logo's public URL in the `brand` bucket (a data: URL in local mode) and the
+      // accent colour as '#RRGGBB'. Both null until the owner sets them.
+      logo_url: text({ label: 'Logo' }),
+      brand_color: text({ label: 'Brand colour' }),
     },
     checks: [
       rule('desk_settings_mpg_positive', positive('mpg'), 'MPG must be more than 0.'),
@@ -122,6 +159,10 @@ const SCHEMA = {
       rule('desk_settings_home_lat_range', within('home_lat', -90, 90), "Home location isn't a valid map position."),
       rule('desk_settings_home_lng_range', within('home_lng', -180, 180), "Home location isn't a valid map position."),
       rule('desk_settings_home_coords_pair', bothOrNeither('home_lat', 'home_lng'), 'Home location needs both latitude and longitude.'),
+      rule('desk_settings_brand_color_hex', (row) => isNull(row.brand_color) || HEX_COLOR_PATTERN.test(row.brand_color), BRAND_COLOR_MESSAGE),
+      // The database caps logo_url at 2,048 characters. Local mode keeps the image itself as a
+      // data: URL, so it gets a size cap instead.
+      rule('desk_settings_logo_url_length', (row) => isNull(row.logo_url) || validLogoUrl(row.logo_url), "That logo can't be saved — upload it again."),
     ],
   },
 
@@ -362,14 +403,14 @@ const FOREIGN_KEY_MESSAGES = new Map(FOREIGN_KEYS.map((fk) => [fk.constraint, fk
 // List ordering, shared by both modes: Supabase sends it as ORDER BY, memory mode sorts with
 // the same spec. NULLs always sort last.
 const ORDER = {
-  clients: [['name'], ['created_at']],
-  stock_items: [['bought_at', 'desc'], ['created_at', 'desc']],
+  clients: [['name'], ['created_at'], ['id']],
+  stock_items: [['bought_at', 'desc'], ['created_at', 'desc'], ['id']],
   deals: [['sale_date', 'desc'], ['number', 'desc']],
   deal_items: [['position'], ['created_at']],
   deal_costs: [['created_at']],
   payments: [['paid_at'], ['created_at']],
   deal_trips: [['trip_date'], ['created_at']],
-  trips: [['trip_date', 'desc'], ['created_at', 'desc']],
+  trips: [['trip_date', 'desc'], ['created_at', 'desc'], ['id']],
 };
 
 // Children embedded in every deal: [key on the deal, table, ordering].
@@ -591,6 +632,10 @@ function describeDbError(error, status) {
   // Checked before 42501: PostgREST answers a request without a valid token with 401 and the
   // anon role's "permission denied", which means "sign in again", not "not yours".
   if (status === 401 || code.startsWith('PGRST3')) return MESSAGES.sessionExpired;
+  // An insert/update refused by a policy's "parent row exists" check: in a per-owner app that
+  // means the parent (sale, client, stock item) was deleted, e.g. on another device.
+  const rlsTable = /violates row-level security policy for table "([^"]+)"/.exec(message)?.[1];
+  if (rlsTable) return RLS_PARENT_MESSAGES[rlsTable] ?? 'A linked record no longer exists — reload the page.';
   if (code === '42501' || /row-level security/i.test(message)) return MESSAGES.forbidden;
   if (code === 'PGRST116') return MESSAGES.notFound;
   if (code === '42P01' || code === 'PGRST205') return MESSAGES.notSetUp;
@@ -655,6 +700,42 @@ function requireEmail(email) {
 function requirePassword(password) {
   if (typeof password !== 'string' || password === '') throw new Error('Enter your password.');
   return password;
+}
+
+// A prepared logo image (brand.js prepareLogo resizes it first) → its file extension.
+function checkLogo(blob) {
+  if (!blob || typeof blob.size !== 'number' || typeof blob.arrayBuffer !== 'function') throw new Error('Choose an image for your logo.');
+  const ext = LOGO_TYPES[String(blob.type).toLowerCase()];
+  if (!ext) throw new Error(LOGO_MESSAGES.notImage);
+  if (blob.size === 0) throw new Error(LOGO_MESSAGES.notImage);
+  if (blob.size > LOGO_MAX_BYTES) throw new Error(LOGO_MESSAGES.tooBig);
+  return ext;
+}
+
+// '#w=512&h=171': the stored pixel size rides along in the URL fragment (browsers ignore it
+// when fetching), so the shell can reserve the logo's space before it loads.
+function logoFragment({ width, height } = {}) {
+  const w = Math.round(Number(width));
+  const h = Math.round(Number(height));
+  return w > 0 && h > 0 && w <= 4096 && h <= 4096 ? `#w=${w}&h=${h}` : '';
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return globalThis.btoa(binary);
+}
+
+// Supabase Storage error → one human sentence.
+function describeStorageError(error) {
+  const message = String(error?.message ?? '');
+  const status = Number(error?.statusCode ?? error?.status ?? 0);
+  if (NETWORK_FAILURE_PATTERN.test(message)) return MESSAGES.network;
+  if (status === 413 || /maximum allowed size|too large/i.test(message)) return LOGO_MESSAGES.tooBig;
+  if (status === 415 || /mime type|not supported/i.test(message)) return LOGO_MESSAGES.notImage;
+  if (status === 401 || /jwt|unauthori[sz]ed/i.test(message)) return MESSAGES.sessionExpired;
+  if (status === 403 || /row-level security|not allowed/i.test(message)) return MESSAGES.forbidden;
+  return LOGO_MESSAGES.uploadFailed;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -798,9 +879,11 @@ function httpStatusMessage(status) {
 function createBrowserSupabaseClient() {
   const library = globalThis.window?.supabase ?? globalThis.supabase;
   if (typeof library?.createClient !== 'function') throw new Error(MESSAGES.noClientLibrary);
-  // Same options as the original app on this origin, so its stored session is shared.
+  // Same storage as the original app on this origin, so its stored session is shared. PKCE:
+  // email links come back as ?code=, which only the browser that asked for the link can
+  // exchange, so a crafted #access_token link can't swap in someone else's session.
   return library.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
 }
 
@@ -854,6 +937,17 @@ async function createSupabaseStore({ client, fetchImpl }) {
     if (!currentUser) throw new Error(MESSAGES.signedOut);
   }
 
+  // Every row of a list, a page at a time: PostgREST silently stops at its Max rows (1000).
+  // build() returns a fresh, fully ordered query for each page.
+  async function selectAll(build) {
+    const rows = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const page = await run(build().range(from, from + PAGE_SIZE - 1));
+      rows.push(...(page ?? []));
+      if (!page || page.length < PAGE_SIZE) return rows;
+    }
+  }
+
   function requireId(id, message = MESSAGES.notFound) {
     if (!isUuid(id)) throw new Error(message);
   }
@@ -893,9 +987,11 @@ async function createSupabaseStore({ client, fetchImpl }) {
 
   async function listRows(table, { includeArchived }) {
     requireSignedIn();
-    let query = client.from(table).select('*');
-    if (!includeArchived) query = query.eq('archived', false);
-    return run(applyOrder(query, ORDER[table]));
+    return selectAll(() => {
+      let query = client.from(table).select('*');
+      if (!includeArchived) query = query.eq('archived', false);
+      return applyOrder(query, ORDER[table]);
+    });
   }
 
   function dealQuery() {
@@ -913,6 +1009,38 @@ async function createSupabaseStore({ client, fetchImpl }) {
   async function getSettings() {
     requireSignedIn();
     return settingsFromRow(await run(client.from('desk_settings').select('*').maybeSingle()));
+  }
+
+  async function saveSettings(patch) {
+    requireSignedIn();
+    const values = prepareWrite('desk_settings', patch, 'update');
+    if (isEmpty(values)) return getSettings();
+    const row = await run(client.from('desk_settings').upsert(values, { onConflict: 'owner' }).select('*').single());
+    changes.emit();
+    return settingsFromRow(row);
+  }
+
+  // Best effort: deletes every file in the owner's logo folder except `keep`. A failure only
+  // leaves an unused file behind, so it is logged, never shown.
+  async function removeLogoFiles(uid, keep) {
+    try {
+      const bucket = client.storage.from(LOGO_BUCKET);
+      const { data, error } = await bucket.list(uid, { limit: 100 });
+      if (error) throw error;
+      const stale = (data ?? []).map((file) => file?.name).filter((name) => name && name !== keep).map((name) => `${uid}/${name}`);
+      if (stale.length) await bestEffortRemove(stale);
+    } catch (err) {
+      console.warn('[store] could not tidy old logos', err);
+    }
+  }
+
+  async function bestEffortRemove(paths) {
+    try {
+      const removed = await client.storage.from(LOGO_BUCKET).remove(paths);
+      if (removed?.error) throw removed.error;
+    } catch (err) {
+      console.warn('[store] could not delete logo files', err);
+    }
   }
 
   async function nextItemPosition(dealId) {
@@ -985,13 +1113,45 @@ async function createSupabaseStore({ client, fetchImpl }) {
 
     settings: {
       get: getSettings,
-      async save(patch) {
+      save: saveSettings,
+
+      // blob: a PNG/JPEG/WebP of at most 1 MB (brand.js prepareLogo makes one from any photo).
+      // Uploads it to brand/<uid>/logo-<ms>.<ext>, saves its public URL as logo_url, then tidies
+      // away older logos. Resolves the saved settings.
+      async uploadLogo(blob, size = {}) {
         requireSignedIn();
-        const values = prepareWrite('desk_settings', patch, 'update');
-        if (isEmpty(values)) return getSettings();
-        const row = await run(client.from('desk_settings').upsert(values, { onConflict: 'owner' }).select('*').single());
-        changes.emit();
-        return settingsFromRow(row);
+        const ext = checkLogo(blob);
+        const uid = currentUser.id;
+        const path = `${uid}/logo-${Date.now()}.${ext}`;
+        const bucket = client.storage.from(LOGO_BUCKET);
+        let uploaded;
+        try {
+          uploaded = await bucket.upload(path, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
+        } catch (err) {
+          throw failure(describeStorageError(err), err);
+        }
+        if (uploaded?.error) throw failure(describeStorageError(uploaded.error), uploaded.error);
+        const publicUrl = bucket.getPublicUrl(path)?.data?.publicUrl;
+        let saved;
+        try {
+          if (!publicUrl) throw new Error(LOGO_MESSAGES.uploadFailed);
+          saved = await saveSettings({ logo_url: `${publicUrl}${logoFragment(size)}` });
+        } catch (err) {
+          // Keep the old logo: drop only the new file, which nothing points at.
+          await bestEffortRemove([path]);
+          throw err;
+        }
+        await removeLogoFiles(uid, path.slice(uid.length + 1));
+        return saved;
+      },
+
+      // Clears logo_url, then deletes the files. Resolves the saved settings.
+      async removeLogo() {
+        requireSignedIn();
+        const uid = currentUser.id;
+        const saved = await saveSettings({ logo_url: null });
+        await removeLogoFiles(uid, null);
+        return saved;
       },
     },
 
@@ -1002,7 +1162,7 @@ async function createSupabaseStore({ client, fetchImpl }) {
     deals: {
       async list() {
         requireSignedIn();
-        return run(applyOrder(dealQuery(), ORDER.deals));
+        return selectAll(() => applyOrder(dealQuery(), ORDER.deals));
       },
 
       get: getDeal,
@@ -1087,7 +1247,7 @@ async function createSupabaseStore({ client, fetchImpl }) {
     trips: {
       async list() {
         requireSignedIn();
-        return run(applyOrder(client.from('trips').select(TRIP_SELECT), ORDER.trips));
+        return selectAll(() => applyOrder(client.from('trips').select(TRIP_SELECT), ORDER.trips));
       },
       create: async (trip) => insertOne('trips', prepareWrite('trips', trip, 'insert'), TRIP_SELECT),
       update: async (id, patch) => updateById('trips', id, prepareWrite('trips', patch, 'update'), TRIP_SELECT),
@@ -1364,6 +1524,18 @@ function createMemoryStore({ storage, fetchImpl, watchStorage }) {
     return read((source) => settingsFromRow(source.desk_settings[0]));
   }
 
+  function saveSettings(patch) {
+    const values = prepareWrite('desk_settings', patch, 'update');
+    if (isEmpty(values)) return getSettings();
+    return transact((draft) => {
+      const existing = draft.desk_settings[0];
+      const row = existing
+        ? updateRow(draft, 'desk_settings', existing.owner, values)
+        : insertRow(draft, 'desk_settings', values);
+      return settingsFromRow(row);
+    });
+  }
+
   const rowById = (table) => (source, id) => findRow(source, table, id);
   const tripById = (source, id) => shapeTrips(source, [findRow(source, 'trips', id)])[0];
 
@@ -1414,17 +1586,15 @@ function createMemoryStore({ storage, fetchImpl, watchStorage }) {
 
     settings: {
       get: async () => getSettings(),
-      async save(patch) {
-        const values = prepareWrite('desk_settings', patch, 'update');
-        if (isEmpty(values)) return getSettings();
-        return transact((draft) => {
-          const existing = draft.desk_settings[0];
-          const row = existing
-            ? updateRow(draft, 'desk_settings', existing.owner, values)
-            : insertRow(draft, 'desk_settings', values);
-          return settingsFromRow(row);
-        });
+      save: async (patch) => saveSettings(patch),
+      // Local mode keeps the image itself, as a data: URL, in this browser's storage.
+      async uploadLogo(blob, size = {}) {
+        const ext = checkLogo(blob);
+        const type = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        return saveSettings({ logo_url: `data:${type};base64,${bytesToBase64(bytes)}${logoFragment(size)}` });
       },
+      removeLogo: async () => saveSettings({ logo_url: null }),
     },
 
     clients: rowTable('clients'),

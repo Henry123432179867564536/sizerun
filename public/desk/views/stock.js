@@ -33,6 +33,7 @@ import {
 } from '../lib/ui.js';
 import { EPS, dealNumber, num, stockLevels } from '../lib/calc.js';
 import { date as formatDate, money, plural, todayISO } from '../lib/format.js';
+import { ListRow, usePhone } from './clients.js';
 
 const MAX_NAME = 120;
 const MAX_QTY = 100000;
@@ -54,6 +55,10 @@ const CSS = `
 .st-uses li { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
 .st-uses li:last-child { border-bottom: 0; }
 .st-delete { margin-right: auto; }
+.st-uses-title { margin-bottom: 4px; }
+.st-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.st-sub { font-weight: 400; }
+.st-kpis .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 639.98px) {
   .st-table td.cell-primary { min-width: 0; }
   /* With nothing allocated, "Qty" and "Allocated" repeat "On hand": keep phone cards short. */
@@ -281,6 +286,8 @@ function StockEditor({ store, row, deals, suggestions, busy, onClose, onDelete }
 
   const problems = stockProblems(form);
   const shown = tried ? problems : {};
+  // Only with a mouse: on a phone the keyboard would jump up over the sheet before it's read.
+  const [finePointer] = useState(() => typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: fine)').matches));
   const set = (key) => (event) => {
     const value = event.currentTarget.value;
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -333,7 +340,7 @@ function StockEditor({ store, row, deals, suggestions, busy, onClose, onDelete }
             maxlength=${MAX_NAME}
             autocomplete="off"
             autocapitalize="words"
-            autofocus=${!editing}
+            autofocus=${!editing && finePointer}
             placeholder="e.g. Nike Dunk Low Panda"
             onInput=${set('name')}
           />
@@ -388,7 +395,7 @@ function StockEditor({ store, row, deals, suggestions, busy, onClose, onDelete }
       <datalist id=${`${formId}-suppliers`}>${suggestions.suppliers.map((value) => html`<option key=${value} value=${value} />`)}</datalist>
       <datalist id=${`${formId}-locations`}>${suggestions.locations.map((value) => html`<option key=${value} value=${value} />`)}</datalist>
       ${row?.uses.length > 0 && html`<div>
-        <p class="field-label" style="margin-bottom:4px">On sales</p>
+        <p class="field-label st-uses-title">On sales</p>
         <ul class="st-uses">
           ${row.uses.map(({ deal, qty }) => {
             const status = statusMeta[deal.status] ?? statusMeta.agreed;
@@ -431,11 +438,11 @@ function StockRow({ row, busy, onEdit, onDelete }) {
     .flatMap((part, index) => (index ? [' · ', part] : [part]));
   return html`<tr class="is-clickable" onClick=${() => onEdit(row)}>
     <td class="cell-primary">
-      <div class="row row-nowrap" style="gap:6px">
+      <div class="st-name">
         <span class="truncate">${item.name}</span>
         ${item.archived && html`<${Badge} tone="muted" dot=${false}>Archived<//>`}
       </div>
-      <div class="small muted truncate" style="font-weight:400">${details}</div>
+      <div class="small muted truncate st-sub">${details}</div>
       ${oversold && html`<span class="pill pill-loss" title="More are on sales than you bought">Oversold by ${-level.onHand}</span>`}
     </td>
     <td data-label="Size">${clean(item.size) || null}</td>
@@ -463,6 +470,27 @@ function StockRow({ row, busy, onEdit, onDelete }) {
       </div>
     </td>
   </tr>`;
+}
+
+// Phones: name over "UK 9 · Nike · 40 days", value at cost over what's on hand. Tapping a
+// row opens the editor, which also holds Delete.
+function StockListRow({ row, onEdit }) {
+  const { item, level, age, aged } = row;
+  const oversold = level.onHand < 0;
+  const sub = [clean(item.size), clean(item.brand), item.condition === 'used' && 'Used', age !== null && ageText(age)].filter(Boolean).join(' · ');
+  let meta = `${level.onHand} on hand`;
+  if (level.allocated > 0) meta += ` · ${level.allocated} on sales`;
+  if (oversold) meta = `Oversold by ${-level.onHand}`;
+  return html`<${ListRow}
+    onClick=${() => onEdit(row)}
+    title=${item.name}
+    badge=${item.archived && html`<${Badge} tone="muted" dot=${false}>Archived<//>`}
+    subtitle=${sub || 'No size or brand'}
+    amount=${html`<${Money} value=${level.value} />`}
+    meta=${meta}
+    metaTone=${oversold ? 'loss' : aged ? 'warn' : undefined}
+    label=${`Edit ${item.name}`}
+  />`;
 }
 
 function StockTable({ rows, busyId, onEdit, onDelete }) {
@@ -524,15 +552,15 @@ function StockSummary({ rows }) {
   const aged = live.filter((row) => row.aged);
   const agedValue = aged.reduce((sum, row) => sum + row.level.value, 0);
   const agedUnits = aged.reduce((sum, row) => sum + Math.max(0, row.level.onHand), 0);
-  return html`<div class="kpis">
+  return html`<div class="kpis st-kpis">
     <${Stat} label="Units on hand" value=${String(units)} sub=${plural(lines, 'line')} />
     <${Stat} label="Stock value" value=${money(value)} sub="At cost" tone=${value > EPS ? 'signal' : undefined} />
-    <${Stat} label="To hand over" value=${String(toHandOver)} sub="On sales not yet delivered" />
+    <${Stat} label="To hand over" value=${String(toHandOver)} sub="Not delivered yet" />
     <${Stat}
       label=${`Aged ${AGED_DAYS}+ days`}
       value=${money(agedValue)}
       tone=${agedValue > EPS ? 'warn' : undefined}
-      sub=${agedUnits > 0 ? `${plural(agedUnits, 'unit')} tied up` : 'Nothing slow-moving'}
+      sub=${agedUnits > 0 ? `${plural(agedUnits, 'unit')} tied up` : 'None slow-moving'}
     />
   </div>`;
 }
@@ -541,6 +569,7 @@ export default function StockView({ store, params, navigate }) {
   const { data, error, loading, reload } = useStoreData(store, loadStock);
   const [editor, setEditor] = useState(null); // null | { row } (row null = new item)
   const [busyId, setBusyId] = useState(null);
+  const phone = usePhone();
 
   const show = FILTER_IDS.has(params.show) ? params.show : 'in';
   const q = typeof params.q === 'string' ? params.q : '';
@@ -651,11 +680,11 @@ export default function StockView({ store, params, navigate }) {
     <//>`}
     <${StockSummary} rows=${rows} />
     <${Tabs} tabs=${tabs} value=${show} onChange=${(id) => setView({ show: id })} label="Filter stock" />
-    <div class="toolbar">
+    <div class="toolbar cl-toolbar">
       <${SearchBox}
         value=${q}
         onInput=${(text) => setView({ q: text })}
-        placeholder="Search name, brand or SKU"
+        placeholder="Search stock"
         label="Search stock"
       />
       <${Select}
@@ -675,7 +704,9 @@ export default function StockView({ store, params, navigate }) {
               ${q && html`<${Button} onClick=${() => setView({ q: '' })}>Clear search<//>`}
               ${show !== 'all' && html`<${Button} kind="ghost" onClick=${() => setView({ show: 'all' })}>Show all stock<//>`}`}
           />`
-        : html`<${StockTable}
+        : phone
+          ? html`<ul class="lr-list">${shown.map((row) => html`<${StockListRow} key=${row.item.id} row=${row} onEdit=${(r) => setEditor({ row: r })} />`)}</ul>`
+          : html`<${StockTable}
             rows=${shown}
             busyId=${busyId}
             onEdit=${(row) => setEditor({ row })}

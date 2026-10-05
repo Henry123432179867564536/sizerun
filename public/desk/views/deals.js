@@ -28,6 +28,7 @@ import {
   Tabs,
   Textarea,
   certaintyMeta,
+  confirmDialog,
   cx,
   paymentMeta,
   statusMeta,
@@ -555,32 +556,39 @@ function useTripPlanner() {
 }
 
 /**
- * TripModal({ store, settings, title, trip, initialOrigin, initialDestination, saveLabel,
- *             onSave(trip) → Promise, onClose })
+ * TripModal({ store, settings, title, trip, defaultDate, initialOrigin, initialDestination,
+ *             saveLabel, onSave(trip) → Promise, onDelete, onClose })
  * The trip planner in a dialog: a new drive when `trip` is null (the planner seeds it from
- * settings and the two places), otherwise that drive to edit. onSave receives the planned
- * trip; the dialog stays open and shows the message if it rejects. The caller closes it.
+ * settings and the two places), otherwise that drive to edit. The drive's date starts at the
+ * trip's own, else defaultDate, else today. onSave receives the planned trip with trip_date;
+ * the dialog stays open and shows the message if it rejects. The caller closes it. onDelete,
+ * when given, adds a Delete button.
  */
 export function TripModal({
   store,
   settings,
   title = 'Log drive',
   trip,
+  defaultDate,
   initialOrigin,
   initialDestination,
   saveLabel = 'Save drive',
   onSave,
+  onDelete,
   onClose,
 }) {
   const { planner, error, retry } = useTripPlanner();
   const [value, setValue] = useState(trip ?? null);
+  const [tripDate, setTripDate] = useState(() => trip?.trip_date || defaultDate || todayISO());
   const [problem, setProblem] = useState(null);
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
+  const dateError = tripDate ? null : 'Enter the day of the drive.';
 
   async function save() {
     if (saving || !planner) return;
     const missing = value ? Object.values(planner.problemsOf(value)) : ['Plan the drive first.'];
+    if (dateError) missing.unshift(dateError);
     if (missing.length) {
       setShowErrors(true);
       setProblem(missing[0]);
@@ -589,7 +597,7 @@ export function TripModal({
     setProblem(null);
     setSaving(true);
     try {
-      await onSave(value);
+      await onSave({ ...value, trip_date: tripDate });
     } catch (err) {
       setProblem(err instanceof Error && err.message ? err.message : "Couldn't save the drive — try again.");
       setSaving(false);
@@ -600,6 +608,7 @@ export function TripModal({
     if (!saving) onClose();
   };
   const footer = html`
+    ${onDelete && html`<${Button} kind="ghost" icon="trash" class="sf-foot-left" onClick=${onDelete} disabled=${saving}>Delete<//>`}
     <${Button} kind="ghost" onClick=${close} disabled=${saving}>Cancel<//>
     <${Button} kind="primary" icon="check" onClick=${save} loading=${saving} disabled=${!planner}>${saveLabel}<//>`;
 
@@ -623,6 +632,9 @@ export function TripModal({
   return html`<${Modal} title=${title} size="lg" onClose=${close} footer=${footer}>
     <div class="stack">
       ${problem && html`<${Banner} tone="loss">${problem}<//>`}
+      <${Field} label="Date" required error=${showErrors && dateError}>
+        <${Input} type="date" value=${tripDate} onInput=${(event) => setTripDate(event.currentTarget.value)} />
+      <//>
       ${body}
     </div>
   <//>`;
@@ -972,22 +984,14 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
 
 /** CostFields({ draft, onChange(patch), errors, title, onRemove }) — one extra cost. */
 export function CostFields({ draft, onChange, errors = {}, title, onRemove }) {
-  return html`<div class="stack-sm">
-    ${title && html`<div class="row row-between">
-      <span class="strong">${title}</span>
+  return html`<div class="stack">
+    ${title && html`<div class="sf-head">
+      <span class="sf-head-title">${title}</span>
       ${onRemove && html`<${Button} kind="ghost" size="sm" icon="trash" onClick=${onRemove} aria-label=${`Remove ${title}`}>Remove<//>`}
     </div>`}
-    <div style=${FIELD_GRID}>
+    <div class="sf-grid">
       <${Field} label="Type">
         <${Select} options=${COST_KIND_OPTIONS} value=${draft.kind} onChange=${(event) => onChange({ kind: event.currentTarget.value })} />
-      <//>
-      <${Field} label="What for">
-        <${Input}
-          autocomplete="off"
-          placeholder=${COST_PLACEHOLDERS[draft.kind] ?? ''}
-          value=${draft.label}
-          onInput=${(event) => onChange({ label: event.currentTarget.value })}
-        />
       <//>
       <${Field} label="Amount" required error=${errors.amount}>
         <${Input}
@@ -997,6 +1001,14 @@ export function CostFields({ draft, onChange, errors = {}, title, onRemove }) {
           placeholder="0.00"
           value=${draft.amount}
           onInput=${(event) => onChange({ amount: event.currentTarget.value })}
+        />
+      <//>
+      <${Field} label="What for" class="span-all">
+        <${Input}
+          autocomplete="off"
+          placeholder=${COST_PLACEHOLDERS[draft.kind] ?? ''}
+          value=${draft.label}
+          onInput=${(event) => onChange({ label: event.currentTarget.value })}
         />
       <//>
     </div>
@@ -1028,9 +1040,11 @@ function KvRow({ label, note, value, kind, big }) {
 export function ProfitBreakdown({ totals: t, targetMargin, perHour = true }) {
   const drove = t.totalMinutes > 0 || t.travelCost > EPS;
   const hourlyRate = t.totalMinutes > 0 ? t.timeCost / (t.totalMinutes / 60) : 0;
-  const varianceNote = t.variance === null
-    ? null
-    : t.variance >= 0 ? 'Bought cheaper than expected' : 'Cost more than expected';
+  let varianceNote = null;
+  if (t.variance !== null) {
+    if (Math.abs(t.variance) < EPS) varianceNote = 'Exactly what you expected';
+    else varianceNote = t.variance > 0 ? 'Bought cheaper than expected' : 'Cost more than expected';
+  }
   // Compared in money with calc's half-penny tolerance, as calc.assessDeal does.
   const marginNote = targetMargin > 0 && t.margin !== null
     ? `${t.netProfit >= targetMargin * t.revenue - EPS ? 'on' : 'under'} your ${pct(targetMargin)} target`
@@ -1181,6 +1195,38 @@ function SaleRow({ row, navigate }) {
   </tr>`;
 }
 
+// Phones: one compact row per sale — who and what on the left, profit on the right, and a
+// status line underneath (dots, not badges, so a row stays two to three short lines).
+function SaleListRow({ row }) {
+  const { deal, totals, toBuy } = row;
+  const status = statusMeta[deal.status] ?? statusMeta.agreed;
+  const payment = paymentMeta[totals.paymentStatus] ?? paymentMeta.none;
+  const cancelled = deal.status === 'cancelled';
+  const dueSoon = deal.due_date && OPEN_STATUSES.has(deal.status);
+  const overdue = dueSoon && deal.due_date < todayISO();
+  const owed = !cancelled && totals.balance > EPS && deal.status !== 'enquiry';
+  return html`<a class="list-item sale-row" href=${`#/sales/${deal.id}`}>
+    <div class="list-main">
+      <div class="list-title">${deal.client?.name ?? deal.title ?? 'No client'}</div>
+      <div class="list-sub"><span class="mono">${dealNumber(deal.number)}</span> · ${itemsSummary(deal.items)}</div>
+      <div class="sale-row-meta">
+        <span class="sale-dot" data-tone=${status.tone}>${status.label}</span>
+        ${!cancelled && totals.paymentStatus !== 'none' && html`<span class="sale-dot" data-tone=${payment.tone}>${payment.label}</span>`}
+        ${toBuy > 0 && !cancelled && html`<span class="tone-warn">${toBuy} to buy</span>`}
+        ${dueSoon && html`<span class=${overdue ? 'tone-loss' : undefined}>due ${relDays(deal.due_date)}</span>`}
+      </div>
+    </div>
+    <div class="list-aside">
+      <div class=${cx('sale-amt', !cancelled && (totals.netProfit < -EPS ? 'tone-loss' : totals.netProfit > EPS ? 'tone-gain' : null), cancelled && 'tone-muted')}>
+        ${money(totals.netProfit)}
+      </div>
+      <div class="sale-amt-sub">
+        ${totals.certainty === 'estimated' && !cancelled ? 'est. · ' : ''}${owed ? `${money(totals.balance)} owed` : `${money(totals.revenue)} sale`}
+      </div>
+    </div>
+  </a>`;
+}
+
 function SalesList({ store, params, navigate }) {
   const { data: deals, error, loading, reload } = useStoreData(store, (s) => s.deals.list());
   const tab = TAB_IDS.has(params.tab) ? params.tab : 'all';
@@ -1215,12 +1261,11 @@ function SalesList({ store, params, navigate }) {
   const revenue = sum((row) => row.totals.revenue);
   const profit = sum((row) => row.totals.netProfit);
   const owed = sum((row) => (isOwed(row) ? row.totals.balance : 0));
-  let profitNote = '';
-  if (live.length > 0 && live.every(isEstimated)) profitNote = ' (estimated)';
-  else if (live.some(isEstimated)) profitNote = ` (${money(sum((row) => (isEstimated(row) ? row.totals.netProfit : 0)))} of it estimated)`;
+  const profitNote = live.some(isEstimated) ? ' (some est.)' : '';
+  const wide = useMedia('(min-width: 900px)');
 
   const actions = html`<${Button} kind="primary" icon="plus" href="#/sales/new">New sale<//>`;
-  const page = (body, subtitle) => html`<${Page} title="Sales" subtitle=${subtitle} actions=${actions}>${body}<//>`;
+  const page = (body, subtitle) => html`<${Page} title="Sales" subtitle=${wide ? subtitle : null} actions=${actions}>${body}<//>`;
 
   if (loading) return page(html`<${Loading} label="Loading sales…" />`);
   if (error && !deals) {
@@ -1242,17 +1287,19 @@ function SalesList({ store, params, navigate }) {
   const cardTitle = plural(shown.length, 'sale');
   const cardSub = tab === 'cancelled'
     ? 'Cancelled sales are left out of every total.'
-    : [`${money(revenue)} revenue`, `${money(profit)} profit${profitNote}`, owed > EPS && `${money(owed)} owed`]
+    : [`${money(revenue, { pence: false })} sales`, `${money(profit, { pence: false })} profit${profitNote}`, owed > EPS && `${money(owed, { pence: false })} owed`]
       .filter(Boolean).join(' · ');
 
   return page(html`
     ${error && html`<${Banner} tone="warn" title="Couldn't refresh" actions=${html`<${Button} size="sm" onClick=${reload}>Try again<//>`}>${error.message}<//>`}
-    <${Tabs} tabs=${tabs} value=${tab} onChange=${(id) => setView({ tab: id })} label="Filter sales" />
-    <div class="toolbar">
+    <div class="sales-tabs">
+      <${Tabs} tabs=${tabs} value=${tab} onChange=${(id) => setView({ tab: id })} label="Filter sales" />
+    </div>
+    <div class="sales-toolbar">
       <${SearchBox}
         value=${q}
         onInput=${(text) => setView({ q: text })}
-        placeholder="Search client, item, SKU or SM number"
+        placeholder="Search sales"
         label="Search sales"
       />
       <${Select}
@@ -1271,7 +1318,10 @@ function SalesList({ store, params, navigate }) {
             action=${html`${q && html`<${Button} onClick=${() => setView({ q: '' })}>Clear search<//>`}
               ${tab !== 'all' && html`<${Button} kind="ghost" onClick=${() => setView({ tab: 'all' })}>Show all sales<//>`}`}
           />`
-        : html`<div class="table-wrap">
+        : html`<div class="list sales-rows">
+            ${shown.map((row) => html`<${SaleListRow} key=${row.deal.id} row=${row} />`)}
+          </div>
+          <div class="table-wrap sales-table">
             <table class="table">
               <thead>
                 <tr>
@@ -1313,24 +1363,72 @@ function objects(list) {
   return Array.isArray(list) ? list.filter((entry) => entry && typeof entry === 'object') : [];
 }
 
+function blankDetails() {
+  return { title: '', status: 'agreed', sale_date: todayISO(), due_date: '', delivery_method: 'drop_off', notes: '' };
+}
+
+function readDraft() {
+  try {
+    const raw = window.sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeDraft(draft) {
+  try {
+    if (draft) window.sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    else window.sessionStorage.removeItem(DRAFT_KEY);
+  } catch {
+    // Storage blocked: the in-app leave guard still protects the form.
+  }
+}
+
+/** Anything typed that leaving the page would throw away (a picked client alone isn't). */
+function hasWork({ items, costs, trip, details, payment }) {
+  const typed = (value) => trimmed(value) !== '';
+  return items.some((item) => ['description', 'unit_price', 'expected_unit_cost', 'unit_cost', 'supplier', 'brand', 'sku', 'size']
+    .some((key) => typed(item[key])))
+    || costs.some((cost) => !isBlankCost(cost))
+    || Boolean(trip)
+    || typed(details.title)
+    || typed(details.notes)
+    || typed(payment.amount);
+}
+
 function initialSale(params) {
-  const prefill = takePrefill() ?? {};
-  const items = objects(prefill.items).map(draftFromItem);
-  const trip = prefill.trip && typeof prefill.trip === 'object' ? prefill.trip : null;
+  const prefill = takePrefill();
+  // No hand-off from the checker or Stock: pick up an unsaved sale left by a back swipe.
+  if (!prefill && !params.stock) {
+    const draft = readDraft();
+    const items = objects(draft?.items);
+    if (draft && items.length && (!params.client || params.client === draft.clientId)) {
+      return {
+        restored: true,
+        fromChecker: false,
+        clientId: typeof draft.clientId === 'string' ? draft.clientId : '',
+        items: items.map((item) => blankItem({ ...item, key: draftKey() })),
+        costs: objects(draft.costs).map((cost) => blankCost({ ...cost, key: draftKey() })),
+        trip: draft.trip && typeof draft.trip === 'object' ? draft.trip : null,
+        details: { ...blankDetails(), ...(draft.details && typeof draft.details === 'object' ? draft.details : {}) },
+        payment: { amount: '', method: 'bank', ...(draft.payment && typeof draft.payment === 'object' ? draft.payment : {}) },
+      };
+    }
+  }
+  const data = prefill ?? {};
+  const items = objects(data.items).map(draftFromItem);
+  const trip = data.trip && typeof data.trip === 'object' ? data.trip : null;
   return {
-    fromChecker: Boolean(prefill.items || prefill.trip),
-    clientId: params.client || prefill.client_id || '',
+    restored: false,
+    fromChecker: Boolean(data.items || data.trip),
+    clientId: params.client || data.client_id || '',
     items: items.length ? items : [blankItem()],
-    costs: objects(prefill.costs).map(draftFromCost),
+    costs: objects(data.costs).map(draftFromCost),
     trip,
-    details: {
-      title: '',
-      status: 'agreed',
-      sale_date: todayISO(),
-      due_date: '',
-      delivery_method: 'drop_off',
-      notes: '',
-    },
+    details: blankDetails(),
     payment: { amount: '', method: 'bank' },
   };
 }
@@ -1348,6 +1446,7 @@ async function loadNewSaleData(s) {
 function NewSale({ store, params, navigate }) {
   const { data, error, loading, reload } = useStoreData(store, loadNewSaleData);
   const [initial] = useState(() => initialSale(params));
+  const [restored, setRestored] = useState(initial.restored);
   const [clientId, setClientId] = useState(initial.clientId);
   const [items, setItems] = useState(initial.items);
   const [costs, setCosts] = useState(initial.costs);
@@ -1357,30 +1456,74 @@ function NewSale({ store, params, navigate }) {
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tripOpen, setTripOpen] = useState(false);
+  const wide = useMedia('(min-width: 900px)');
   const formRef = useRef(null);
-  const dirtyRef = useRef(false);
-  const savedRef = useRef(false);
+  const workRef = useRef(false); // unsaved work worth a "discard?" question
+  const savedRef = useRef(false); // saved or deliberately discarded: leave freely
   const stockAppliedRef = useRef(false);
   const dismissWarningRef = useRef(null); // the "check the highlighted fields" toast, if showing
 
+  const dirty = hasWork({ items, costs, trip, details, payment });
+  workRef.current = dirty && !savedRef.current;
+
   useEffect(() => () => dismissWarningRef.current?.(), []);
 
-  // Anything typed counts as unsaved work worth a "leave this page?" warning on close.
-  const firstRenderRef = useRef(true);
+  // A copy in sessionStorage survives a back swipe or iOS dropping the tab.
   useEffect(() => {
-    if (firstRenderRef.current) firstRenderRef.current = false;
-    else dirtyRef.current = true;
+    if (savedRef.current) return;
+    writeDraft(dirty ? { clientId, items, costs, trip, details, payment } : null);
   }, [clientId, items, costs, trip, details, payment]);
 
   useEffect(() => {
     const warn = (event) => {
-      if (!dirtyRef.current || savedRef.current) return;
+      if (!workRef.current) return;
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, []);
+
+  // In-app links (tab bar, back, sidebar, links inside the form) ask before throwing work away.
+  useEffect(() => {
+    const onClick = (event) => {
+      if (!workRef.current || event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest('a[href^="#"]') : null;
+      if (!link || link.target === '_blank') return;
+      const href = link.getAttribute('href');
+      if (!href || href === '#' || href === window.location.hash) return;
+      event.preventDefault();
+      event.stopPropagation();
+      confirmDialog({
+        title: 'Discard this sale?',
+        body: "It isn't saved yet, so leaving now throws away what you've entered.",
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        danger: true,
+      }).then((ok) => {
+        if (!ok) return;
+        savedRef.current = true;
+        workRef.current = false;
+        writeDraft(null);
+        navigate(href);
+      });
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [navigate]);
+
+  const startOver = () => {
+    writeDraft(null);
+    setClientId(params.client || '');
+    setItems([blankItem()]);
+    setCosts([]);
+    setTrip(null);
+    setDetails(blankDetails());
+    setPayment({ amount: '', method: 'bank' });
+    setShowErrors(false);
+    setRestored(false);
+  };
 
   const stockRows = data?.stock ?? [];
   const deals = data?.deals ?? [];
@@ -1465,13 +1608,15 @@ function NewSale({ store, params, navigate }) {
         costs: costRows,
       });
       savedRef.current = true;
+      workRef.current = false;
+      writeDraft(null);
       const number = dealNumber(created.number);
 
       // The sale is saved; a drive or payment that fails is reported, not lost silently.
       const missed = [];
       if (trip) {
         try {
-          await store.trips.create({ ...trip, deal_id: created.id, client_id: clientId || null });
+          await store.trips.create({ trip_date: details.sale_date, ...trip, deal_id: created.id, client_id: clientId || null });
         } catch (err) {
           missed.push(`the drive (${err.message})`);
         }
@@ -1492,9 +1637,10 @@ function NewSale({ store, params, navigate }) {
     }
   }
 
+  const firstName = client?.name ? client.name.trim().split(/\s+/)[0] : '';
   const page = (body) => html`<${Page}
-    title="New sale"
-    subtitle="Log it as soon as it's agreed — even if you still need to buy the item."
+    title=${firstName ? `New sale · ${firstName}` : 'New sale'}
+    subtitle=${wide ? "Log it as soon as it's agreed — even if you still need to buy the item." : null}
     back="#/sales"
   >${body}<//>`;
 
@@ -1506,20 +1652,33 @@ function NewSale({ store, params, navigate }) {
   const certainty = certaintyMeta[totals.certainty];
   const drives = DRIVEN_DELIVERY.has(details.delivery_method);
   const targetMargin = num(settings?.target_margin);
+  const estimated = totals.certainty === 'estimated';
+  const detailsHint = [
+    statusMeta[details.status]?.label,
+    details.sale_date === todayISO() ? 'sold today' : details.sale_date && `sold ${saleDate(details.sale_date)}`,
+    trimmed(details.title),
+  ].filter(Boolean).join(' · ');
+  const barSub = totals.revenue > EPS
+    ? `${money(totals.revenue)} sale${totals.margin !== null ? ` · ${pct(totals.margin)} margin` : ''}`
+    : 'Add a sale price to see the profit';
 
   return page(html`
+    ${restored && html`<${Banner}
+      tone="signal"
+      title="Picked up where you left off"
+      actions=${html`<${Button} size="sm" onClick=${startOver}>Start again<//>`}
+    >This sale isn't saved yet.<//>`}
     ${initial.fromChecker && html`<${Banner} tone="signal" icon="calculator" title="Filled in from the deal checker">
       Check the details, pick the client and save.
     <//>`}
     <form
       ref=${formRef}
-      class="row row-top"
-      style=${FORM_LAYOUT}
+      class="ns-form"
       noValidate=${true}
       onSubmit=${onSubmit}
       onKeyDown=${blockImplicitSubmit}
     >
-      <div class="stack" style=${FORM_MAIN}>
+      <div class="ns-col">
         <${Card} title="Who's it for?">
           <${ClientPicker}
             store=${store}
@@ -1530,16 +1689,13 @@ function NewSale({ store, params, navigate }) {
           />
         <//>
 
-        <${Card}
-          title="Items"
-          subtitle="What they're buying, and whether you still need to get it."
-        >
+        <${Card} title=${items.length > 1 ? `Items · ${items.length}` : 'Items'}>
           <div class="stack">
             ${items.map((item, index) => html`<div key=${item.key} class="stack">
               ${index > 0 && html`<hr class="divider" />`}
               <${ItemFields}
                 draft=${item}
-                title=${items.length > 1 ? `Item ${index + 1}` : 'Item'}
+                title=${items.length > 1 ? `Item ${index + 1}` : null}
                 errors=${shownProblems.items[index]}
                 stockChoices=${choicesFor(item)}
                 maxQty=${maxQtyFor(item)}
@@ -1554,95 +1710,121 @@ function NewSale({ store, params, navigate }) {
           </div>
         <//>
 
-        <${Card} title="Extra costs" subtitle="Postage, fees, packaging — anything that isn't the item itself.">
-          <div class="stack">
-            ${costs.length === 0 && html`<p class="small muted">No extra costs.</p>`}
-            ${costs.map((cost, index) => html`<div key=${cost.key} class="stack">
-              ${index > 0 && html`<hr class="divider" />`}
-              <${CostFields}
-                draft=${cost}
-                title=${`Cost ${index + 1}`}
-                errors=${shownProblems.costs[index]}
-                onChange=${(patch) => updateCost(cost.key, patch)}
-                onRemove=${() => setCosts((list) => list.filter((entry) => entry.key !== cost.key))}
-              />
-            </div>`)}
-            <div>
-              <${Button} icon="plus" onClick=${() => setCosts((list) => [...list, blankCost()])}>Add a cost<//>
-            </div>
-          </div>
-        <//>
-
         <${Card} title="Delivery">
           <div class="stack">
-            <div style=${FIELD_GRID}>
-              <${Field} label="How it gets to them">
+            <div class="sf-grid">
+              <${Field} label="How it gets to them" class="sf-wide">
                 <${Select} options=${DELIVERY_OPTIONS} value=${details.delivery_method} onChange=${setDetail('delivery_method')} />
               <//>
-              <${Field} label="Deliver by" error=${shownProblems.details.due_date}>
+              <${Field} label="Deliver by" error=${shownProblems.details.due_date} class="sf-wide">
                 <${Input} type="date" min=${details.sale_date || undefined} value=${details.due_date} onInput=${setDetail('due_date')} />
               <//>
             </div>
             ${trip
-              ? html`<div class="row row-between row-top" style=${BOXED_PAD}>
+              ? html`<div class="sf-box-pad stack">
                   <${TripSummary} trip=${trip} />
                   <div class="row">
-                    <${Button} size="sm" icon="edit" onClick=${() => setTripOpen(true)}>Edit<//>
-                    <${Button} kind="ghost" size="sm" icon="trash" aria-label="Remove the drive" onClick=${() => setTrip(null)} />
+                    <${Button} size="sm" icon="edit" onClick=${() => setTripOpen(true)}>Edit drive<//>
+                    <${Button} kind="ghost" size="sm" icon="trash" onClick=${() => setTrip(null)}>Remove<//>
                   </div>
                 </div>`
-              : drives && html`<div class="row row-between" style=${BOXED_PAD}>
-                  <span class="small muted" style="flex:1 1 220px">
-                    Driving it over? Add the drive to see the real profit after fuel and your time.
-                  </span>
-                  <${Button} icon="car" onClick=${() => setTripOpen(true)}>Add the drive<//>
+              : drives && html`<div class="sf-box-pad stack">
+                  <p class="sf-note">Driving it over? Add the drive to see the real profit after fuel and your time.</p>
+                  <div><${Button} icon="car" onClick=${() => setTripOpen(true)}>Add the drive<//></div>
                 </div>`}
           </div>
         <//>
 
-        <${Card} title="Details">
-          <div style=${FIELD_GRID}>
-            <${Field} label="Status">
-              <${Select} options=${statusOptions} value=${details.status} onChange=${setDetail('status')} />
-            <//>
-            <${Field} label="Sale date" required error=${shownProblems.details.sale_date}>
-              <${Input} type="date" value=${details.sale_date} onInput=${setDetail('sale_date')} />
-            <//>
-            <${Field} label="Paid so far" error=${shownProblems.payment} hint="Deposit or full payment already received.">
-              <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${payment.amount}
-                onInput=${(event) => setPayment((current) => ({ ...current, amount: event.currentTarget.value }))} />
-            <//>
-            ${paidAmount > 0 && html`<${Field} label="Paid by">
-              <${Select} options=${PAYMENT_METHOD_OPTIONS} value=${payment.method}
-                onChange=${(event) => setPayment((current) => ({ ...current, method: event.currentTarget.value }))} />
-            <//>`}
-            <${Field} label="Title" hint="Optional — a name to spot this sale by." class="span-all">
-              <${Input} autocomplete="off" placeholder="e.g. Match-day boots for Saturday" value=${details.title} onInput=${setDetail('title')} />
-            <//>
-            <${Field} label="Notes" class="span-all">
-              <${Textarea} value=${details.notes} onInput=${setDetail('notes')} placeholder="Anything to remember about this sale" />
+        <${Card}
+          title="Extra costs"
+          actions=${html`<${Button} kind="ghost" size="sm" icon="plus" onClick=${() => setCosts((list) => [...list, blankCost()])}>Add cost<//>`}
+        >
+          ${costs.length === 0
+            ? html`<p class="sf-note">Postage, fees, packaging — anything that isn't the item itself.</p>`
+            : html`<div class="stack">
+                ${costs.map((cost, index) => html`<div key=${cost.key} class="stack">
+                  ${index > 0 && html`<hr class="divider" />`}
+                  <${CostFields}
+                    draft=${cost}
+                    title=${`Cost ${index + 1}`}
+                    errors=${shownProblems.costs[index]}
+                    onChange=${(patch) => updateCost(cost.key, patch)}
+                    onRemove=${() => setCosts((list) => list.filter((entry) => entry.key !== cost.key))}
+                  />
+                </div>`)}
+              </div>`}
+        <//>
+
+        <${Card} title="Payment and details">
+          <div class="stack">
+            <div class="sf-grid">
+              <${Field}
+                label="Paid so far"
+                error=${shownProblems.payment}
+                hint="A deposit or full payment already received."
+                class=${paidAmount > 0 ? 'sf-wide' : 'span-all'}
+              >
+                <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${payment.amount}
+                  onInput=${(event) => setPayment((current) => ({ ...current, amount: event.currentTarget.value }))} />
+              <//>
+              ${paidAmount > 0 && html`<${Field} label="Paid by" class="sf-wide">
+                <${Select} options=${PAYMENT_METHOD_OPTIONS} value=${payment.method}
+                  onChange=${(event) => setPayment((current) => ({ ...current, method: event.currentTarget.value }))} />
+              <//>`}
+            </div>
+            <${Disclosure}
+              title="More details"
+              hint=${detailsHint}
+              open=${showErrors && Boolean(problems.details.sale_date)}
+            >
+              <div class="sf-grid">
+                <${Field} label="Status" class="sf-wide">
+                  <${Select} options=${statusOptions} value=${details.status} onChange=${setDetail('status')} />
+                <//>
+                <${Field} label="Sale date" required error=${shownProblems.details.sale_date} class="sf-wide">
+                  <${Input} type="date" value=${details.sale_date} onInput=${setDetail('sale_date')} />
+                <//>
+                <${Field} label="Title" hint="Optional — a name to spot this sale by." class="span-all">
+                  <${Input} autocomplete="off" placeholder="e.g. Match-day boots for Saturday" value=${details.title} onInput=${setDetail('title')} />
+                <//>
+                <${Field} label="Notes" class="span-all">
+                  <${Textarea} value=${details.notes} onInput=${setDetail('notes')} placeholder="Anything to remember about this sale" />
+                <//>
+              </div>
             <//>
           </div>
         <//>
       </div>
 
-      <div class="stack" style=${FORM_SIDE}>
+      <div class="ns-col ns-side">
         <${Card}
           title="Totals"
           actions=${html`<${Badge} tone=${certainty.tone}>${certainty.label}<//>`}
         >
           <div class="stack">
             <${ProfitBreakdown} totals=${totals} targetMargin=${targetMargin} />
-            ${totals.certainty === 'estimated' && html`<p class="small muted">
+            ${estimated && html`<p class="sf-note">
               Estimated until ${plural(totals.expectedCount, 'cost')} ${totals.expectedCount === 1 ? 'is' : 'are'} confirmed —
               mark items bought on the sale page.
             </p>`}
-            <${Button} kind="primary" type="submit" size="lg" block icon="check" loading=${saving}>
-              ${saving ? 'Saving…' : 'Save sale'}
-            <//>
-            <${Button} kind="ghost" block href="#/sales" disabled=${saving}>Cancel<//>
+            <div class="ns-side-save">
+              <${Button} kind="primary" type="submit" size="lg" block icon="check" loading=${saving}>
+                ${saving ? 'Saving…' : 'Save sale'}
+              <//>
+              <${Button} kind="ghost" block href="#/sales" disabled=${saving}>Cancel<//>
+            </div>
           </div>
         <//>
+      </div>
+
+      <div class="sf-bar">
+        <div class="sf-bar-text">
+          <span class="sf-bar-main">
+            Profit <${Money} value=${totals.netProfit} tone="auto" />${estimated && html` <span class="pill pill-warn">est.</span>`}
+          </span>
+          <span class="sf-bar-sub">${barSub}</span>
+        </div>
+        <${Button} kind="primary" type="submit" icon="check" loading=${saving}>${saving ? 'Saving…' : 'Save sale'}<//>
       </div>
     </form>
     ${tripOpen && html`<${TripModal}
@@ -1650,6 +1832,7 @@ function NewSale({ store, params, navigate }) {
       settings=${settings}
       title=${trip ? 'Edit the drive' : 'Add the drive'}
       trip=${trip}
+      defaultDate=${details.sale_date || undefined}
       initialOrigin=${trip ? tripEnd(trip, 'origin') : homeLocation(settings)}
       initialDestination=${trip ? tripEnd(trip, 'dest') : clientDestination(client)}
       saveLabel="Use this drive"

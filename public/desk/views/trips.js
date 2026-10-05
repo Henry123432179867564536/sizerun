@@ -27,18 +27,36 @@ import { dealNumber, tripTotals } from '../lib/calc.js';
 import { date as formatDate, duration, miles as formatMiles, money, moneyShort, monthLabel, plural, todayISO } from '../lib/format.js';
 import TripPlanner, { tripProblems } from '../components/trip-planner.js';
 import { BarChart } from '../components/charts.js';
+import { ListRow } from './clients.js';
 
 const PERIODS = [
-  { value: 'month', label: 'This month' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: 'year', label: 'This year' },
-  { value: 'all', label: 'All time' },
+  { value: 'month', label: 'This month', short: 'Month' },
+  { value: '30d', label: 'Last 30 days', short: '30 days' },
+  { value: 'year', label: 'This year', short: 'Year' },
+  { value: 'all', label: 'All time', short: 'All' },
 ];
 
 const CHART_MONTHS = 12;
 const PHONE_QUERY = '(max-width: 639.98px)';
-// Phone tables bold the whole headline cell; the line under the trip name stays regular.
-const SUB_LINE = { fontWeight: 400 };
+
+const CSS = `
+.trips-sub { font-weight: 400; }
+.trips-kpis .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trips-form-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.trips-form-foot .trips-delete { margin-right: auto; }
+.trips-period .segmented { width: 100%; }
+@media (min-width: 640px) {
+  .trips-period .segmented { width: auto; }
+}
+`;
+
+const STYLE_ID = 'desk-trips-styles';
+if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = CSS;
+  document.head.append(style);
+}
 const litresFormat = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 0 });
 
 async function loadTripsPage(store) {
@@ -63,12 +81,29 @@ function isoDaysAgo(days) {
   return todayISO(d);
 }
 
-function periodStart(period) {
-  const today = todayISO();
-  if (period === 'month') return `${today.slice(0, 7)}-01`;
-  if (period === '30d') return isoDaysAgo(29);
-  if (period === 'year') return `${today.slice(0, 4)}-01-01`;
-  return null;
+function lastDayOfMonth(year, month) {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate(); // day 0 of the next month
+}
+
+/**
+ * Trip-date range for a period, both ends inclusive ({} = all time). Like the dashboard's,
+ * it has an end too, so a drive planned for a later date isn't counted in this month's or the
+ * last 30 days' totals.
+ */
+export function periodRange(period, today = todayISO()) {
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7));
+  if (period === 'month') return { from: `${today.slice(0, 7)}-01`, to: `${today.slice(0, 7)}-${String(lastDayOfMonth(year, month)).padStart(2, '0')}` };
+  if (period === '30d') return { from: isoDaysAgo(29), to: today };
+  if (period === 'year') return { from: `${year}-01-01`, to: `${year}-12-31` };
+  return {};
+}
+
+/** True when the trip's date falls inside `range` (always, for all time). */
+export function inPeriod(trip, range) {
+  if (!range.from) return true;
+  const day = typeof trip?.trip_date === 'string' ? trip.trip_date.slice(0, 10) : '';
+  return day >= range.from && day <= range.to;
 }
 
 // "St Mary's Stadium" from "St Mary's Stadium, Britannia Road, Southampton SO14 5FP".
@@ -244,8 +279,8 @@ function TripsScreen({ store, data, params, refreshError, onRetry }) {
     [clients],
   );
 
-  const from = periodStart(period);
-  const visible = from ? trips.filter((t) => typeof t.trip_date === 'string' && t.trip_date >= from) : trips;
+  const range = periodRange(period);
+  const visible = range.from ? trips.filter((t) => inPeriod(t, range)) : trips;
   const totals = totalsFor(visible);
   const months = monthlyCosts(visible);
   const showOther = months.some((m) => m.other > 0);
@@ -409,7 +444,14 @@ function TripsScreen({ store, data, params, refreshError, onRetry }) {
               <${Select} value=${editor.meta.client_id} options=${[{ value: '', label: 'No client' }, ...clientOptions]} onChange=${onClientChange} />
             <//>
           </div>
-          <div class="row row-end">
+          <div class="trips-form-foot">
+            ${editing && html`<${Button}
+              kind="ghost"
+              icon="trash"
+              class="trips-delete"
+              loading=${busyId === editor.id}
+              onClick=${() => { const trip = trips.find((t) => t.id === editor.id); if (trip) remove(trip); }}
+            >Delete<//>`}
             ${editing && html`<${Button} kind="secondary" onClick=${startNew}>Cancel<//>`}
             <${Button} kind="primary" type="submit" icon="check" loading=${saving}>${editing ? 'Save changes' : 'Save trip'}<//>
           </div>
@@ -418,13 +460,23 @@ function TripsScreen({ store, data, params, refreshError, onRetry }) {
     <//>
   </div>`;
 
-  const kpis = html`<div class="kpis">
+  // Phones get the four that matter, as a 2×2 grid; fuel and your time ride in the subs.
+  const kpis = html`<div class="kpis trips-kpis">
     <${Stat} label="Trips" value=${String(totals.count)} sub=${totals.linked ? `${totals.linked} linked to a sale` : 'None linked to a sale'} />
     <${Stat} label="Miles" value=${formatMiles(totals.miles)} sub=${totals.count ? `${formatMiles(totals.miles / totals.count)} a trip` : undefined} />
-    <${Stat} label="Time on the road" value=${duration(totals.totalMinutes)} sub=${`${duration(totals.drivingMinutes)} driving`} />
-    <${Stat} label="Fuel" value=${money(totals.fuelCost)} sub=${totals.litres > 0 ? `${litresFormat.format(totals.litres)} litres` : undefined} />
-    <${Stat} label="Cash cost" value=${money(totals.cashCost)} sub="Fuel, wear and extras" tone=${totals.cashCost > 0 ? 'warn' : undefined} />
-    <${Stat} label="Your time" value=${money(totals.timeCost)} sub="What those hours were worth" />
+    <${Stat}
+      label="Time on the road"
+      value=${duration(totals.totalMinutes)}
+      sub=${phone ? `Worth ${money(totals.timeCost)}` : `${duration(totals.drivingMinutes)} driving`}
+    />
+    ${!phone && html`<${Stat} label="Fuel" value=${money(totals.fuelCost)} sub=${totals.litres > 0 ? `${litresFormat.format(totals.litres)} litres` : undefined} />`}
+    <${Stat}
+      label="Cash cost"
+      value=${money(totals.cashCost)}
+      sub=${phone ? `${money(totals.fuelCost)} fuel` : 'Fuel, wear and extras'}
+      tone=${totals.cashCost > 0 ? 'warn' : undefined}
+    />
+    ${!phone && html`<${Stat} label="Your time" value=${money(totals.timeCost)} sub="What those hours were worth" />`}
   </div>`;
 
   const chart = months.length >= 2 && html`<${Card} title="Driving costs by month" subtitle="Cash spent on the road in this period">
@@ -461,7 +513,12 @@ function TripsScreen({ store, data, params, refreshError, onRetry }) {
     <//>`;
   } else {
     list = html`<${Card} pad=${false} title="Saved trips" subtitle=${plural(visible.length, 'trip')}>
-      <div class="table-wrap">
+      ${phone ? html`<ul class="lr-list">${visible.map((trip) => html`<${TripListRow}
+        key=${trip.id}
+        trip=${trip}
+        editing=${editor.id === trip.id}
+        onEdit=${startEdit}
+      />`)}</ul>` : html`<div class="table-wrap">
         <table class="table">
           <thead>
             <tr>
@@ -486,20 +543,45 @@ function TripsScreen({ store, data, params, refreshError, onRetry }) {
             />`)}
           </tbody>
         </table>
-      </div>
+      </div>`}
     <//>`;
   }
 
   return html`<${Page} title="Trips" subtitle="Drives, miles and fuel costs">
     ${refreshError && html`<${Card}><${ErrorState} error=${refreshError} title="Couldn't refresh your trips" onRetry=${onRetry} /><//>`}
     ${plannerCard}
-    ${trips.length > 0 && html`<div class="toolbar">
-      <${Segmented} label="Period" options=${PERIODS} value=${period} onChange=${setPeriod} />
+    ${trips.length > 0 && html`<div class="toolbar trips-period">
+      <${Segmented}
+        label="Period"
+        options=${PERIODS.map((p) => ({ value: p.value, label: phone ? p.short : p.label }))}
+        value=${period}
+        onChange=${setPeriod}
+        full=${phone}
+      />
     </div>`}
     ${trips.length > 0 && kpis}
     ${chart}
     ${list}
   <//>`;
+}
+
+// Phones: name (or route) over date · sale · client, cash cost over miles and time. Tapping
+// a row loads it into the planner, where it can be changed or deleted.
+function TripListRow({ trip, editing, onEdit }) {
+  const t = tripTotals(trip);
+  const name = clean(trip.label);
+  const route = routeText(trip);
+  const linked = [trip.deal && dealNumber(trip.deal.number), trip.client?.name].filter(Boolean).join(' · ');
+  return html`<${ListRow}
+    onClick=${() => onEdit(trip)}
+    title=${name ?? route}
+    badge=${editing && html`<${Badge} tone="signal">Editing<//>`}
+    subtitle=${[formatDate(trip.trip_date), linked || (name ? route : trip.round_trip ? 'There and back' : 'One way')].filter(Boolean).join(' · ')}
+    amount=${money(t.cashCost)}
+    meta=${`${formatMiles(t.miles)} · ${duration(t.totalMinutes)}`}
+    current=${editing}
+    label=${`Edit trip ${name ?? route}, ${formatDate(trip.trip_date)}`}
+  />`;
 }
 
 function TripRow({ trip, editing, busy, onEdit, onDelete }) {
@@ -512,7 +594,7 @@ function TripRow({ trip, editing, busy, onEdit, onDelete }) {
         <span class="truncate">${name ?? route}</span>
         ${editing && html`<${Badge} tone="signal">Editing<//>`}
       </div>
-      <div class="muted small truncate" style=${SUB_LINE}>${name ? route : trip.round_trip ? 'There and back' : 'One way'}</div>
+      <div class="muted small truncate trips-sub">${name ? route : trip.round_trip ? 'There and back' : 'One way'}</div>
     </td>
     <td data-label="Date" class="nowrap">${formatDate(trip.trip_date)}</td>
     <td data-label="Linked to">

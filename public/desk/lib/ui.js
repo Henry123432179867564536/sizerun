@@ -9,7 +9,9 @@
 // over the native elements, so their handlers receive the DOM event as usual.
 //
 // Extras beyond the spec: Icon, Banner, Loading, ErrorState, Switch, ShellContext, useField,
-// useId, cx, statusOptions, certaintyMeta, iconNames.
+// useId, cx, statusOptions, certaintyMeta, iconNames, Fields, isCoarsePointer.
+// Field also takes `optional` (adds a muted "(optional)"); an error replaces the hint.
+// Importing this module installs html.is-typing / html.is-keyboard tracking (see below).
 
 import {
   html,
@@ -55,6 +57,86 @@ function hasContent(children) {
   if (Array.isArray(children)) return children.some(hasContent);
   return children !== undefined && children !== null && children !== false && children !== true && children !== '';
 }
+
+// ---------------------------------------------------------------------------------------------
+// Phone keyboard and typing state (desk.css reads these)
+// ---------------------------------------------------------------------------------------------
+//
+// html.is-typing   a text control has focus: the bottom tab bar steps aside and --tabbar-h
+//                  becomes 0, so sticky bars and toasts drop to the bottom edge.
+// html.is-keyboard the on-screen keyboard is covering part of the layout viewport (iOS keeps
+//                  100dvh and position:fixed at full height): --vvh / --vvt describe the visible
+//                  area and --kb the covered part, so sheets sit above the keyboard.
+
+const NON_TEXT_INPUTS = new Set(['button', 'checkbox', 'radio', 'range', 'color', 'file', 'submit', 'reset', 'image', 'hidden']);
+
+function isTextControl(node) {
+  if (!(node instanceof Element)) return false;
+  if (node instanceof HTMLTextAreaElement) return !node.readOnly && !node.disabled;
+  if (node instanceof HTMLSelectElement) return false;
+  if (node instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(node.type) && !node.readOnly && !node.disabled;
+  return node.isContentEditable === true;
+}
+
+/** True on touch-first devices, where a programmatic focus should not raise a keyboard. */
+export function isCoarsePointer() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    && window.matchMedia('(pointer: coarse)').matches;
+}
+
+function installViewportTracking() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (window.__deskViewportTracking) return;
+  window.__deskViewportTracking = true;
+  const root = document.documentElement;
+  let blurTimer = 0;
+
+  const onFocusIn = (event) => {
+    window.clearTimeout(blurTimer);
+    root.classList.toggle('is-typing', isTextControl(event.target));
+  };
+  const onFocusOut = () => {
+    // Moving focus between two fields fires focusout then focusin; don't flash the tab bar.
+    window.clearTimeout(blurTimer);
+    blurTimer = window.setTimeout(() => {
+      if (!isTextControl(document.activeElement)) root.classList.remove('is-typing');
+    }, 120);
+  };
+  document.addEventListener('focusin', onFocusIn);
+  document.addEventListener('focusout', onFocusOut);
+
+  const vv = window.visualViewport;
+  if (!vv) return;
+  let frame = 0;
+  const update = () => {
+    frame = 0;
+    const covered = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    // Ignore pinch-zoom and small browser-chrome changes; only a keyboard covers this much.
+    const keyboard = covered > 120 && vv.scale <= 1.01;
+    root.classList.toggle('is-keyboard', keyboard);
+    if (keyboard) {
+      root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+      root.style.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`);
+      root.style.setProperty('--kb', `${covered}px`);
+      // Keep the field being typed in visible inside a sheet that just got shorter.
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.closest('.modal-body')) {
+        active.scrollIntoView({ block: 'nearest' });
+      }
+    } else {
+      root.style.removeProperty('--vvh');
+      root.style.removeProperty('--vvt');
+      root.style.removeProperty('--kb');
+    }
+  };
+  const schedule = () => {
+    if (!frame) frame = window.requestAnimationFrame(update);
+  };
+  vv.addEventListener('resize', schedule);
+  vv.addEventListener('scroll', schedule);
+}
+
+installViewportTracking();
 
 function toError(reason) {
   if (reason instanceof Error) return reason;
@@ -417,12 +499,13 @@ export function useField() {
  * Links its label, hint and error to the first Input/Select/Textarea inside it.
  * `error` may be a message or `true` (mark invalid without text).
  */
-export function Field({ label, hint, error, required = false, id, children, class: classAttr, className }) {
+export function Field({ label, hint, error, required = false, optional = false, id, children, class: classAttr, className }) {
   const autoId = useId('field');
   const ownerRef = useRef(null);
   const controlId = id ?? autoId;
-  const hintId = hasContent(hint) ? `${controlId}-hint` : undefined;
   const showError = hasContent(error) && error !== true;
+  // The error takes the hint's place, so a field never grows two message lines at once.
+  const hintId = hasContent(hint) && !showError ? `${controlId}-hint` : undefined;
   const errorId = showError ? `${controlId}-error` : undefined;
   const context = {
     controlId,
@@ -432,7 +515,7 @@ export function Field({ label, hint, error, required = false, id, children, clas
   };
   return html`<div class=${cx('field', error && 'has-error', classAttr, className)}>
     ${hasContent(label) && html`<label class="field-label" for=${controlId}>
-      ${label}${required && html`<span class="field-req" aria-hidden="true"> *</span>`}
+      ${label}${required && html`<span class="field-req" aria-hidden="true"> *</span>`}${!required && optional && html`<span class="field-optional"> (optional)</span>`}
     </label>`}
     <${FieldContext.Provider} value=${context}>${children}<//>
     ${showError && html`<p class="field-error" id=${errorId}>${error}</p>`}
@@ -471,10 +554,12 @@ export function Input(props) {
   const { prefix, suffix, class: classAttr, className, ...rest } = props;
   const control = useFieldControl(rest);
   const numeric = rest.type === 'number';
+  const dateLike = rest.type === 'date' || rest.type === 'time' || rest.type === 'datetime-local' || rest.type === 'month';
+  const empty = dateLike && 'value' in rest && (rest.value === '' || rest.value === null || rest.value === undefined);
   const input = html`<input
     ...${rest}
     ...${control}
-    class=${cx('input', classAttr, className)}
+    class=${cx('input', empty && 'is-empty', classAttr, className)}
     step=${rest.step ?? (numeric ? 'any' : undefined)}
     inputmode=${rest.inputmode ?? rest.inputMode ?? (numeric ? 'decimal' : undefined)}
   />`;
@@ -513,6 +598,15 @@ export function Textarea(props) {
   const { class: classAttr, className, rows = 3, ...rest } = props;
   const control = useFieldControl(rest);
   return html`<textarea ...${rest} ...${control} rows=${rows} class=${cx('textarea', classAttr, className)}></textarea>`;
+}
+
+/**
+ * Fields({ cols, children }) — a grid of Fields: one column on phones, two from 520px
+ * (cols=3: three from 900px). Wrap a child in <div class="span-all"> for a full row, or two
+ * short fields in <div class="field-pair"> to keep them side by side on a phone.
+ */
+export function Fields({ cols, children, class: classAttr, className }) {
+  return html`<div class=${cx('fields', cols === 3 && 'cols-3', classAttr, className)}>${children}</div>`;
 }
 
 /** Switch({ checked, onChange(checked), label, hint, disabled }) — an on/off toggle. */
@@ -765,7 +859,10 @@ function useOverlay(nodeRef, requestClose) {
     lockScroll();
     // Focus the dialog itself unless a control asks for it: no keyboard pops up on phones,
     // and screen readers announce the dialog's title first.
-    (node.querySelector('[autofocus]') ?? node).focus({ preventScroll: true });
+    // On a touch screen a programmatic focus into a text field raises no keyboard on iOS but
+    // still scrolls and shows a ring, so the dialog itself takes focus there instead.
+    const wanted = node.querySelector('[autofocus]');
+    (wanted && !(isCoarsePointer() && isTextControl(wanted)) ? wanted : node).focus({ preventScroll: true });
 
     return () => {
       const index = overlayStack.indexOf(entry);
