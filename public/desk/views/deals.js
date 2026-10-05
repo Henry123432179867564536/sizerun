@@ -1603,9 +1603,8 @@ function NewSale({ store, params, navigate }) {
     costs: costs.map((cost) => (isBlankCost(cost) ? {} : costProblems(cost))),
     details: {
       sale_date: details.sale_date ? null : 'Enter the sale date.',
-      due_date: details.due_date && details.sale_date && details.due_date < details.sale_date
-        ? "Can't be before the sale date."
-        : null,
+      // Any date: backlogged sales are often delivered before the day they're logged as sold.
+      due_date: null,
     },
     payment: amountProblem(payment.amount, { required: false, allowZero: false }),
     noItems: items.length === 0 ? 'Add at least one item.' : null,
@@ -1757,7 +1756,7 @@ function NewSale({ store, params, navigate }) {
                 <${Select} options=${DELIVERY_OPTIONS} value=${details.delivery_method} onChange=${setDetail('delivery_method')} />
               <//>
               <${Field} label="Deliver by" error=${shownProblems.details.due_date}>
-                <${Input} type="date" min=${details.sale_date || undefined} value=${details.due_date} onInput=${setDetail('due_date')} />
+                <${Input} type="date" value=${details.due_date} onInput=${setDetail('due_date')} />
               <//>
             </div>
             ${trip

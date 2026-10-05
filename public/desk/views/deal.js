@@ -1064,7 +1064,7 @@ function DetailsModal({ store, deal, onClose }) {
   const [saving, setSaving] = useState(false);
   const errors = {
     sale_date: form.sale_date ? null : 'Enter the sale date.',
-    due_date: form.due_date && form.sale_date && form.due_date < form.sale_date ? "Can't be before the sale date." : null,
+    due_date: null, // any date, past included, so backlogged sales can be corrected
   };
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.currentTarget.value }));
 
