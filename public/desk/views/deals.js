@@ -1239,7 +1239,8 @@ function isOwed(row) {
 
 const LIST_TABS = [
   { id: 'all', label: 'All', test: () => true },
-  { id: 'pending', label: 'Pending', test: (row) => row.totals.bucket === 'pending' },
+  // Pending = paid in full but not finished; sales not paid for yet sit under Unpaid.
+  { id: 'pending', label: 'Pending', test: (row) => row.totals.bucket === 'pending' && row.totals.paymentStatus === 'paid' },
   { id: 'realised', label: 'Realised', test: (row) => row.totals.bucket === 'realised' },
   { id: 'tobuy', label: 'To buy', test: (row) => row.deal.status !== 'cancelled' && row.toBuy > 0 },
   { id: 'unpaid', label: 'Unpaid', test: isOwed },

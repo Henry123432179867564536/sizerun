@@ -685,9 +685,14 @@ describe('summarise', () => {
     assert.equal(s.count, 4);
     assert.equal(s.revenue, 970);
     close(s.realisedProfit, d1Net + 40, 1e-9, 'realisedProfit');
-    assert.equal(s.pendingProfit, 125);
+    // d2 (part paid) and d3 (unpaid) aren't paid in full, so they are unpaid, not pending.
+    assert.equal(s.pendingProfit, 0);
+    assert.equal(s.unpaidProfit, 125);
+    assert.equal(s.realisedCount, 2);
+    assert.equal(s.unpaidCount, 2);
     close(s.netProfit, d1Net + 165, 1e-9, 'netProfit');
-    close(s.netProfit, s.realisedProfit + s.pendingProfit, 1e-9);
+    close(s.netProfit, s.realisedProfit + s.pendingProfit + s.unpaidProfit, 1e-9);
+    close(s.totalProfit, s.realisedProfit + s.pendingProfit, 1e-9);
     assert.equal(s.owed, 370); // d2 250 + d3 120; d5's overpayment does not offset it
     assert.equal(s.toSource, 2);
     assert.equal(s.drivingMinutes, 220);
@@ -707,7 +712,7 @@ describe('summarise', () => {
     assert.equal(byMonth[1].revenue, 450);
     close(byMonth[1].realised, d1Net, 1e-9);
     assert.equal(byMonth[1].pending, 0);
-    assert.deepEqual(byMonth[2], { month: '2026-10', revenue: 420, realised: 0, pending: 125 });
+    assert.deepEqual(byMonth[2], { month: '2026-10', revenue: 420, realised: 0, pending: 0 });
   });
 
   test('from/to filter on sale_date, inclusive at both ends', () => {
@@ -715,7 +720,8 @@ describe('summarise', () => {
     assert.equal(s.count, 2);
     assert.equal(s.revenue, 420);
     assert.equal(s.realisedProfit, 0);
-    assert.equal(s.pendingProfit, 125);
+    assert.equal(s.pendingProfit, 0);
+    assert.equal(s.unpaidProfit, 125);
     assert.equal(s.owed, 370);
     assert.equal(s.toSource, 2);
     assert.equal(s.drivingMinutes, 0);
@@ -747,7 +753,12 @@ describe('summarise', () => {
       count: 0,
       revenue: 0,
       realisedProfit: 0,
+      realisedCount: 0,
       pendingProfit: 0,
+      pendingCount: 0,
+      unpaidProfit: 0,
+      unpaidCount: 0,
+      totalProfit: 0,
       netProfit: 0,
       owed: 0,
       toSource: 0,
@@ -1044,4 +1055,17 @@ test('pay → deliver timing', async () => {
   assert.equal(payToDeliverDays(deal('2026-09-20', [{ amount: 450, paid_at: '2026-09-10' }], { status: 'cancelled' })), null);
   assert.deepEqual(averagePayToDeliver([a, b, deal(null, [])]), { days: 1.5, count: 2 });
   assert.equal(averagePayToDeliver([]), null);
+});
+
+test('summarise: pending is paid in full but not finished; total = realised + pending', () => {
+  const sourcing = { status: 'agreed', sale_date: '2026-10-02', items: [expectedItem(450, 300)], payments: [{ amount: 450 }] };
+  const unpaid = { status: 'agreed', sale_date: '2026-10-03', items: [expectedItem(200, 150)], payments: [] };
+  const done = { status: 'completed', sale_date: '2026-10-01', items: [actualItem(100, 60)], payments: [{ amount: 100 }] };
+  const s = summarise([sourcing, unpaid, done]);
+  assert.equal(s.pendingProfit, 150);
+  assert.equal(s.pendingCount, 1);
+  assert.equal(s.unpaidProfit, 50);
+  assert.equal(s.realisedProfit, 40);
+  assert.equal(s.totalProfit, 190);
+  assert.equal(s.byMonth[0].pending, 150);
 });
