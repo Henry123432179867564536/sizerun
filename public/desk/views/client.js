@@ -1136,13 +1136,17 @@ function DetailsCard({ client, onEdit }) {
     ['Client since', client.created_at && formatDate(client.created_at)],
   ].filter(([, value]) => value);
   const preferences = clean(client.preferences);
+  // Club, position and squad number show in the header, so the nudge only covers contact and
+  // agent details.
+  const noContact = ['phone', 'email', 'instagram', 'agent_name', 'agent_phone', 'agent_email']
+    .every((key) => !clean(client[key]));
 
   return html`<${Card} title="Details" actions=${html`<${Button} kind="ghost" size="sm" icon="edit" onClick=${onEdit}>Edit<//>`}>
     <dl class="kv kv-wrap">
       ${rows.map(([label, value]) => html`<div key=${label}><dt>${label}</dt><dd>${value}</dd></div>`)}
     </dl>
-    ${rows.length <= 1 && !preferences && html`<p class="small muted">
-      No club, contact or agent details yet. <button type="button" class="link" onClick=${onEdit}>Add them</button>
+    ${noContact && html`<p class="small muted" style=${rows.length ? 'margin-top:10px' : undefined}>
+      No contact or agent details yet. <button type="button" class="link" onClick=${onEdit}>Add them</button>
     </p>`}
     ${preferences && html`<div class="cl-block">
       <div class="cl-block-title">Preferences</div>
