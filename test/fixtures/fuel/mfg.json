@@ -1,0 +1,147 @@
+{
+ "last_updated": "05/10/2026 00:00:01",
+ "stations": [
+  {
+   "site_id": "gcp187u75esm",
+   "brand": "ESSO",
+   "address": "MFG Northam, 110 Northam Road, Southampton",
+   "postcode": "SO14 0QL",
+   "location": {
+    "latitude": 50.909806,
+    "longitude": -1.389271
+   },
+   "prices": {
+    "E10": 173.9,
+    "E5": 195.9,
+    "B7": 201.9,
+    "SDV": 219.9
+   }
+  },
+  {
+   "site_id": "gcp18cr0w5bk",
+   "brand": "BP",
+   "address": "MFG Woolston, 170 Portsmouth Road, Woolston",
+   "postcode": "S019 9AQ",
+   "location": {
+    "latitude": 50.895645,
+    "longitude": -1.36342
+   },
+   "prices": {
+    "E10": 175.9,
+    "E5": 195.9,
+    "B7": 201.9,
+    "SDV": 219.9
+   }
+  },
+  {
+   "site_id": "gcp1b0vnnp9s",
+   "brand": "Esso",
+   "address": "MFG Hampton Park, 197 Burgess Road, Southampton",
+   "postcode": "SO17 1TU",
+   "location": {
+    "latitude": 50.937808,
+    "longitude": -1.399124
+   },
+   "prices": {
+    "E10": 177.9,
+    "E5": 195.9,
+    "B7": 201.9,
+    "SDV": 219.9
+   }
+  },
+  {
+   "site_id": "7zzzzzzzzzzz",
+   "brand": "BP",
+   "address": "MFG Martlesham Heath, Anson Road, Martlesham",
+   "postcode": "IP5 3RA",
+   "location": {
+    "latitude": 0,
+    "longitude": 0
+   },
+   "prices": {
+    "E10": 175.9,
+    "E5": 195.9,
+    "B7": 199.9,
+    "SDV": 219.9
+   }
+  },
+  {
+   "site_id": "mpsw1yx1r6p5",
+   "brand": "BP",
+   "address": "MFG Blenheim, Hertford Road, Marlborough",
+   "postcode": "SN8 4FD",
+   "location": {
+    "latitude": -1.721881,
+    "longitude": 51.414963
+   },
+   "prices": {
+    "E10": 174.9,
+    "E5": 195.9,
+    "B7": 202.9,
+    "SDV": 219.9
+   }
+  },
+  {
+   "site_id": "7zzzzzzzzzzz",
+   "brand": "Morrisons",
+   "address": "MFG Morrisons London Chingford, 6-7 Alisbury Hall Gardens, Chingford",
+   "postcode": "E4 8SA",
+   "location": {
+    "latitude": 0,
+    "longitude": 0
+   },
+   "prices": {
+    "E10": 171.9,
+    "E5": 189.9,
+    "B7": 197.9,
+    "SDV": 207.9
+   }
+  },
+  {
+   "site_id": "7zzzzzzzzzzz",
+   "brand": "Morrisons",
+   "address": "MFG Morrisons Enfield, 327 Southbury Road, Enfield",
+   "postcode": "EN1 1TW",
+   "location": {
+    "latitude": 0,
+    "longitude": 0
+   },
+   "prices": {
+    "E10": 168.9,
+    "E5": 189.9,
+    "B7": 196.9
+   }
+  },
+  {
+   "site_id": "7zzzzzzzzzzz",
+   "brand": "Morrisons",
+   "address": "MFG Morrisons Peckham, Aylesham Centre, ",
+   "postcode": "SE15 5HS",
+   "location": {
+    "latitude": 0,
+    "longitude": 0
+   },
+   "prices": {
+    "E10": 171.9,
+    "E5": 189.9,
+    "B7": 196.9,
+    "SDV": 179.9
+   }
+  },
+  {
+   "site_id": "gcnctq3g1b3e",
+   "brand": "Morrisons",
+   "address": "MFG Morrisons Totton, Spruce Drive, SOUTHAMPTON",
+   "postcode": "SO40 8AD",
+   "location": {
+    "latitude": 50.923521,
+    "longitude": -1.524619
+   },
+   "prices": {
+    "E10": 176.9,
+    "E5": 189.9,
+    "B7": 199.9
+   }
+  }
+ ]
+}

@@ -1,0 +1,48 @@
+{
+ "last_updated": "26/02/2025 11:45:37",
+ "stations": [
+  {
+   "site_id": "u101fnnp8yzb",
+   "brand": "AppleGreen",
+   "address": "High Street, Uckfield",
+   "postcode": "TN22 5DL",
+   "location": {
+    "latitude": 50.9669,
+    "longitude": 0.096173
+   },
+   "prices": {
+    "E10": 138.8,
+    "E5": 153.8,
+    "B7": 145.8
+   }
+  },
+  {
+   "site_id": "gcp1c24r7frz",
+   "brand": "AppleGreen",
+   "address": "Swaythling Rd, Southampton",
+   "postcode": "SO30 3AG",
+   "location": {
+    "latitude": 50.933875,
+    "longitude": -1.348057
+   },
+   "prices": {
+    "B7": 144.8,
+    "E10": 137.8
+   }
+  },
+  {
+   "site_id": "gcqfzgmq7vh0",
+   "brand": "AppleGreen",
+   "address": "A5 Watling Street, Hinckley",
+   "postcode": "LE10 3ED",
+   "location": {
+    "latitude": 52.533601,
+    "longitude": -1.40986
+   },
+   "prices": {
+    "B7": 144.8,
+    "E10": 138.8
+   }
+  }
+ ]
+}

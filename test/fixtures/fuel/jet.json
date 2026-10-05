@@ -1,0 +1,50 @@
+{
+ "last_updated": "05/10/2026 10:45:51",
+ "stations": [
+  {
+   "site_id": "gcxc46cnjv5k",
+   "brand": "JET",
+   "address": "Eastfield Rd, South Killingholme, Immingham, North Lincolnshire",
+   "postcode": "DN40 3DJ",
+   "location": {
+    "latitude": 53.629445,
+    "longitude": -0.251061
+   },
+   "prices": {
+    "E5": 179.9,
+    "E10": 168.9,
+    "B7": 197.9
+   }
+  },
+  {
+   "site_id": "gcwv3g9d6c5u",
+   "brand": "JET",
+   "address": "2 Catterick Rd, Catterick Garrison, North Yorkshire",
+   "postcode": "DL9 4RZ",
+   "location": {
+    "latitude": 54.37997,
+    "longitude": -1.678725
+   },
+   "prices": {
+    "E5": 182.9,
+    "E10": 171.9,
+    "B7": 198.9
+   }
+  },
+  {
+   "site_id": "gcx0m777b20z",
+   "brand": "JET",
+   "address": "237 Warmsworth Road, Balby, Doncaster, South Yorkshire",
+   "postcode": "DN4 0TP",
+   "location": {
+    "latitude": 53.499943,
+    "longitude": -1.171062
+   },
+   "prices": {
+    "E5": 181.9,
+    "E10": 170.9,
+    "B7": 198.9
+   }
+  }
+ ]
+}

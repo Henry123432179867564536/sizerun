@@ -1,0 +1,83 @@
+{
+ "last_updated": "05/10/2026 00:05:14",
+ "stations": [
+  {
+   "site_id": "gcncrcdh7124",
+   "brand": "ESSO",
+   "address": "Beaulieu Road, SOUTHAMPTON",
+   "postcode": "SO45 4JH",
+   "location": {
+    "latitude": 50.853703,
+    "longitude": -1.414361
+   },
+   "prices": {
+    "E5": 190.9,
+    "E10": 175.9,
+    "B7": 200.9
+   }
+  },
+  {
+   "site_id": "gcp19jyp9p2n",
+   "brand": "ESSO",
+   "address": "149 WEST END ROAD, BITTERNE, SOUTHAMPTON",
+   "postcode": "SO18 6PJ",
+   "location": {
+    "latitude": 50.921585,
+    "longitude": -1.354022
+   },
+   "prices": {
+    "B7": 200.9,
+    "SDV": 214.9,
+    "E5": 188.9,
+    "E10": 173.9
+   }
+  },
+  {
+   "site_id": "gcp18jxhxv06",
+   "brand": "ESSO",
+   "address": "Lodge Road, SOUTHAMPTON",
+   "postcode": "SO14 6RP",
+   "location": {
+    "latitude": 50.919684,
+    "longitude": -1.396304
+   },
+   "prices": {
+    "E10": 173.9,
+    "E5": 188.9,
+    "B7": 200.9
+   }
+  },
+  {
+   "site_id": "gcp1fmyvzxxu",
+   "brand": "ESSO",
+   "address": "Winchester Road, FAIR OAK, EASTLEIGH",
+   "postcode": "SO50 7HD",
+   "location": {
+    "latitude": 50.965231,
+    "longitude": -1.297771
+   },
+   "prices": {
+    "SDV": 213.9,
+    "B7": 199.9,
+    "E5": 190.9,
+    "E10": 175.9
+   }
+  },
+  {
+   "site_id": "gcp41296rv0j",
+   "brand": "ESSO",
+   "address": "134-138 TWYFORD ROAD, EASTLEIGH",
+   "postcode": "SO50 4HP",
+   "location": {
+    "latitude": 50.979723,
+    "longitude": -1.349269
+   },
+   "prices": {
+    "SDV": 213.9,
+    "B7": 199.9,
+    "E5": 189.9,
+    "E10": 174.9
+   }
+  }
+ ]
+}
