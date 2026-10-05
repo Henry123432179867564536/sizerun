@@ -93,8 +93,8 @@ function loadEnvFile(path) {
   return loaded;
 }
 
-// Global headers (source "/(.*)") and exact-path rewrites from vercel.json, so pages behave
-// as they do in production. Pattern rewrites are not emulated.
+// Global headers (source "/(.*)"), exact-path redirects and exact-path rewrites from
+// vercel.json, so pages behave as they do in production. Pattern rules are not emulated.
 function loadVercelConfig() {
   let config = {};
   try {
@@ -110,7 +110,12 @@ function loadVercelConfig() {
       .filter((rule) => typeof rule.source === 'string' && !/[:(*]/.test(rule.source))
       .map((rule) => [rule.source, rule.destination]),
   );
-  return { headers, rewrites };
+  const redirects = new Map(
+    (config.redirects ?? [])
+      .filter((rule) => typeof rule.source === 'string' && !/[:(*]/.test(rule.source))
+      .map((rule) => [rule.source, { destination: rule.destination, status: rule.permanent ? 308 : 307 }]),
+  );
+  return { headers, rewrites, redirects };
 }
 
 function sendText(res, status, text, headers = {}) {
@@ -256,7 +261,7 @@ function serveDevAuth(req, res, pathname, devAuth) {
  * is configured through process.env, which is where the API handlers read it.
  */
 function createDevServer({ port, log }) {
-  const { headers: globalHeaders, rewrites } = loadVercelConfig();
+  const { headers: globalHeaders, rewrites, redirects } = loadVercelConfig();
 
   let devAuth = null;
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -269,7 +274,13 @@ function createDevServer({ port, log }) {
     const started = Date.now();
     for (const { key, value } of globalHeaders) res.setHeader(key, value);
 
-    let { pathname } = new URL(req.url ?? '/', 'http://localhost');
+    let { pathname, search } = new URL(req.url ?? '/', 'http://localhost');
+    const redirect = redirects.get(pathname);
+    if (redirect) {
+      res.writeHead(redirect.status, { Location: redirect.destination + search });
+      res.end();
+      return;
+    }
     pathname = rewrites.get(pathname) ?? pathname;
     if (log) {
       res.once('finish', () => {
