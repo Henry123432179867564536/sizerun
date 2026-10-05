@@ -653,6 +653,82 @@ function useFieldControl(props) {
  * Input(props) — a native <input>; `prefix`/`suffix` add adornments ('£', 'mpg', a button).
  * Number inputs default to step="any" (so pence validate) and a decimal keypad on phones.
  */
+/**
+ * SuggestField({ label, value, onInput, onPick, suggestions, hint, error, required, placeholder,
+ * autocapitalize, openOnFocus, listLabel }) — a text field with a pick list under it.
+ * suggestions: [{ key, title, sub?, value }] for the current value (the caller filters).
+ * Arrow keys move, Enter picks, Escape closes. openOnFocus shows the list before typing.
+ */
+export function SuggestField({
+  label, value, onInput, onPick, suggestions = [], hint, error, required = false, placeholder,
+  autocapitalize = 'words', openOnFocus = false, listLabel = 'Suggestions', class: classAttr,
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [typed, setTyped] = useState(false);
+  const listId = useId('suggest');
+  const shown = open && (typed || openOnFocus) && suggestions.length > 0;
+
+  const pick = (entry) => {
+    onPick(entry);
+    setOpen(false);
+    setTyped(false);
+    setActive(-1);
+  };
+  const onKeyDown = (event) => {
+    if (!shown) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setActive((i) => (i + step + suggestions.length) % suggestions.length);
+    } else if (event.key === 'Enter' && active >= 0 && suggestions[active]) {
+      event.preventDefault();
+      pick(suggestions[active]);
+    } else if (event.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  return html`<div class=${cx('suggest', classAttr)}>
+    <${Field} label=${label} required=${required} error=${error} hint=${hint}>
+      <${Input}
+        autocomplete="off"
+        autocapitalize=${autocapitalize}
+        placeholder=${placeholder}
+        role="combobox"
+        aria-expanded=${shown ? 'true' : 'false'}
+        aria-controls=${listId}
+        aria-autocomplete="list"
+        aria-activedescendant=${shown && active >= 0 ? `${listId}-${active}` : undefined}
+        value=${value}
+        onInput=${(event) => {
+          onInput(event.currentTarget.value);
+          setOpen(true);
+          setTyped(true);
+          setActive(-1);
+        }}
+        onFocus=${() => setOpen(true)}
+        onBlur=${() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown=${onKeyDown}
+      />
+    <//>
+    ${shown && html`<ul class="suggest-list" id=${listId} role="listbox" aria-label=${listLabel}>
+      ${suggestions.map((entry, index) => html`<li
+        key=${entry.key}
+        id=${`${listId}-${index}`}
+        role="option"
+        aria-selected=${index === active ? 'true' : 'false'}
+        class=${index === active ? 'is-active' : undefined}
+        onMouseDown=${(event) => event.preventDefault()}
+        onClick=${() => pick(entry)}
+      >
+        <span class="suggest-title">${entry.title}</span>
+        ${entry.sub && html`<span class="suggest-sub">${entry.sub}</span>`}
+      </li>`)}
+    </ul>`}
+  </div>`;
+}
+
 export function Input(props) {
   const { prefix, suffix, class: classAttr, className, ...rest } = props;
   const control = useFieldControl(rest);

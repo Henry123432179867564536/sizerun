@@ -24,6 +24,7 @@ import {
   SearchBox,
   Segmented,
   Select,
+  SuggestField,
   Switch,
   Tabs,
   Textarea,
@@ -38,7 +39,8 @@ import {
   useStoreData,
 } from '../lib/ui.js';
 import { EPS, averagePayToDeliver, dealNumber, dealTotals, itemTotals, num, payToDeliverDays, stockLevels, tripTotals } from '../lib/calc.js';
-import { itemHistory, suggestItems } from '../lib/search.js';
+import { itemHistory, suggestItems, supplierHistory } from '../lib/search.js';
+import SupplierField from '../components/supplier-field.js';
 import {
   date as formatDate,
   dateShort,
@@ -68,12 +70,6 @@ const PICKER_LIMIT = 6;
 // views/calculator.js does. Field pairs are explicit (never auto-fit, so nothing is stranded or
 // squeezed); dates take the full width on phones, where iOS date controls ignore narrow widths.
 const CSS = `
-.item-name { position: relative; }
-.item-suggest { list-style: none; margin: 6px 0 0; padding: 4px; border: 1px solid var(--line-2); border-radius: var(--r-ctl, 6px); background: var(--surface); box-shadow: 0 8px 24px rgb(0 0 0 / 0.10); max-height: 300px; overflow-y: auto; }
-.item-suggest li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-height: 44px; border-radius: 6px; cursor: pointer; }
-.item-suggest li:hover, .item-suggest li.is-active { background: var(--surface-2); }
-.item-suggest-name { font-weight: 500; overflow-wrap: anywhere; }
-.item-suggest-sub { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; }
 .field-pair.sf-qty { grid-template-columns: minmax(0, 1fr) 96px; }
 .sf-box { overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
 .sf-box-pad { padding: 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
@@ -890,80 +886,33 @@ function varianceHint(row, qty) {
  * name (and brand/SKU when empty) so a repeat item takes two or three letters.
  */
 function ItemNameField({ value, error, history, onInput, onPick }) {
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(-1);
-  const listId = useMemo(() => `item-suggest-${Math.random().toString(36).slice(2, 8)}`, []);
-  const matches = useMemo(() => (open ? suggestItems(history, value) : []), [open, history, value]);
-  const shown = open && matches.length > 0;
-
-  const pick = (entry) => {
-    onPick(entry);
-    setOpen(false);
-    setActive(-1);
-  };
-  const onKeyDown = (event) => {
-    if (!shown) return;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const step = event.key === 'ArrowDown' ? 1 : -1;
-      setActive((i) => (i + step + matches.length) % matches.length);
-    } else if (event.key === 'Enter' && active >= 0) {
-      event.preventDefault();
-      pick(matches[active]);
-    } else if (event.key === 'Escape') {
-      setOpen(false);
-    }
-  };
-
-  return html`<div class="item-name">
-    <${Field} label="Item" required error=${error} hint=${history.length ? 'Start typing — items you have sold before come up.' : undefined}>
-      <${Input}
-        autocomplete="off"
-        autocapitalize="words"
-        placeholder="e.g. Travis Scott Jordan 1 Low"
-        role="combobox"
-        aria-expanded=${shown ? 'true' : 'false'}
-        aria-controls=${listId}
-        aria-autocomplete="list"
-        aria-activedescendant=${shown && active >= 0 ? `${listId}-${active}` : undefined}
-        value=${value}
-        onInput=${(event) => {
-          onInput(event.currentTarget.value);
-          setOpen(true);
-          setActive(-1);
-        }}
-        onFocus=${() => setOpen(true)}
-        onBlur=${() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown=${onKeyDown}
-      />
-    <//>
-    ${shown && html`<ul class="item-suggest" id=${listId} role="listbox" aria-label="Items you've sold before">
-      ${matches.map((entry, index) => {
-        const sub = [
-          entry.brand,
-          entry.sku,
-          entry.lastPrice !== null && entry.lastPrice !== undefined ? `last sold ${money(entry.lastPrice, { pence: false })}` : null,
-          entry.lastCost !== null && entry.lastCost !== undefined ? `cost ${money(entry.lastCost, { pence: false })}` : null,
-          entry.count > 1 ? `${entry.count}×` : null,
-        ].filter(Boolean).join(' · ');
-        return html`<li
-          key=${entry.description}
-          id=${`${listId}-${index}`}
-          role="option"
-          aria-selected=${index === active ? 'true' : 'false'}
-          class=${index === active ? 'is-active' : undefined}
-          onMouseDown=${(event) => event.preventDefault()}
-          onClick=${() => pick(entry)}
-        >
-          <span class="item-suggest-name">${entry.description}</span>
-          ${sub && html`<span class="item-suggest-sub">${sub}</span>`}
-        </li>`;
-      })}
-    </ul>`}
-  </div>`;
+  const suggestions = useMemo(() => suggestItems(history, value).map((entry) => ({
+    key: entry.description,
+    title: entry.description,
+    entry,
+    sub: [
+      entry.brand,
+      entry.sku,
+      entry.lastPrice !== null && entry.lastPrice !== undefined ? `last sold ${money(entry.lastPrice, { pence: false })}` : null,
+      entry.lastCost !== null && entry.lastCost !== undefined ? `cost ${money(entry.lastCost, { pence: false })}` : null,
+      entry.count > 1 ? `${entry.count}×` : null,
+    ].filter(Boolean).join(' · ') || null,
+  })), [history, value]);
+  return html`<${SuggestField}
+    label="Item"
+    required
+    error=${error}
+    hint=${history.length ? 'Start typing — items you have sold before come up.' : undefined}
+    placeholder="e.g. Travis Scott Jordan 1 Low"
+    value=${value}
+    suggestions=${suggestions}
+    listLabel="Items you've sold before"
+    onInput=${onInput}
+    onPick=${(picked) => onPick(picked.entry)}
+  />`;
 }
 
-export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], maxQty, title, onRemove, history = [] }) {
+export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], maxQty, title, onRemove, history = [], suppliers = [] }) {
   const stockById = useMemo(() => new Map(stockChoices.map((choice) => [choice.stock.id, choice.stock])), [stockChoices]);
   const row = itemRowFromDraft(draft, stockById);
   const line = itemTotals(row);
@@ -1003,9 +952,14 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
         <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.expected_unit_cost} onInput=${text('expected_unit_cost')} />
       <//>
       </div>
-      <${Field} label="Buying from" class="span-all" hint="Your best guess. Profit stays estimated until you mark it bought.">
-        <${Input} autocomplete="off" placeholder="e.g. Nike app, StockX" value=${draft.supplier} onInput=${text('supplier')} />
-      <//>
+      <${SupplierField}
+        class="span-all"
+        label="Buying from"
+        hint="Your best guess. Profit stays estimated until you mark it bought."
+        value=${draft.supplier}
+        history=${suppliers}
+        onChange=${(supplier) => onChange({ supplier })}
+      />
     </div>`;
   } else if (draft.source === 'bought') {
     const hint = draft.keepExpected ? varianceHint(row, row.qty) : null;
@@ -1016,9 +970,11 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
         <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.unit_cost} onInput=${text('unit_cost')} />
       <//>
       </div>
-      <${Field} label="Bought from">
-        <${Input} autocomplete="off" placeholder="e.g. Selfridges" value=${draft.supplier} onInput=${text('supplier')} />
-      <//>
+      <${SupplierField}
+        value=${draft.supplier}
+        history=${suppliers}
+        onChange=${(supplier) => onChange({ supplier })}
+      />
       <${Field} label="Bought on">
         <${Input} type="date" max=${today} value=${draft.sourced_at} onInput=${text('sourced_at')} />
       <//>
@@ -1593,6 +1549,7 @@ async function loadNewSaleData(s) {
 function NewSale({ store, params, navigate }) {
   const { data, error, loading, reload } = useStoreData(store, loadNewSaleData);
   const history = useMemo(() => itemHistory({ deals: data?.deals ?? [], stock: data?.stock ?? [] }), [data]);
+  const suppliers = useMemo(() => supplierHistory({ deals: data?.deals ?? [], stock: data?.stock ?? [] }), [data]);
   const [initial] = useState(() => initialSale(params));
   const [restored, setRestored] = useState(initial.restored);
   const [clientId, setClientId] = useState(initial.clientId);
@@ -1862,6 +1819,7 @@ function NewSale({ store, params, navigate }) {
                 maxQty=${maxQtyFor(item)}
                 onChange=${(patch) => updateItem(item.key, patch)}
                 history=${history}
+                suppliers=${suppliers}
                 onRemove=${items.length > 1 ? () => setItems((list) => list.filter((entry) => entry.key !== item.key)) : null}
               />
             </div>`)}

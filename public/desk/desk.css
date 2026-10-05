@@ -3137,3 +3137,11 @@ html.is-settling .tabbar {
 }
 @media (prefers-reduced-motion: reduce) { .settings-target > .card { animation: none; } }
 #business { scroll-margin-top: calc(var(--topbar-h, 56px) + 12px); }
+
+/* ---- SuggestField: a text field with a pick list (items, suppliers) ---- */
+.suggest { position: relative; }
+.suggest-list { list-style: none; margin: 6px 0 0; padding: 4px; border: 1px solid var(--line-2); border-radius: var(--r-ctl, 6px); background: var(--surface); box-shadow: 0 8px 24px rgb(0 0 0 / 0.10); max-height: 300px; overflow-y: auto; }
+.suggest-list li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-height: 44px; justify-content: center; border-radius: 6px; cursor: pointer; }
+.suggest-list li:hover, .suggest-list li.is-active { background: var(--surface-2); }
+.suggest-title { font-weight: 500; overflow-wrap: anywhere; }
+.suggest-sub { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; }
