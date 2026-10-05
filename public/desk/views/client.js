@@ -37,6 +37,7 @@ import { date as formatDate, duration, miles as formatMiles, money, pct, plural,
 import AddressInput from '../components/address-input.js';
 import {
   Avatar,
+  ListRow,
   TagPills,
   clean,
   clientLine,
@@ -45,6 +46,7 @@ import {
   normaliseText,
   saleDateText,
   squadNumber,
+  usePhone,
 } from './clients.js';
 
 // Read by the New sale form: { client_id } preselects the client.
@@ -96,26 +98,51 @@ const CSS = `
 .cl-block-title { margin-bottom: 4px; color: var(--ink-3); font-size: 12px; font-weight: 500; }
 .cl-address .list-sub { white-space: normal; }
 .cl-address .icon { flex: none; color: var(--ink-3); }
-.cl-tag-input { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: var(--ctl-h); padding: 5px 8px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); cursor: text; transition: border-color 0.12s, box-shadow 0.12s; }
+.cl-tag-input { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: var(--ctl-h); padding: 6px 8px; border: 1px solid var(--line-2); border-radius: var(--r-ctl); background: var(--surface); cursor: text; transition: border-color 0.12s, box-shadow 0.12s; }
 .cl-tag-input:hover { border-color: var(--ink-3); }
 .cl-tag-input:focus-within { border-color: var(--signal); box-shadow: 0 0 0 3px var(--ring); }
-.cl-tag-input input { flex: 1 1 120px; min-width: 96px; height: 30px; padding: 0 4px; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 16px; }
+.cl-tag-input input { flex: 1 1 120px; min-width: 96px; height: 32px; padding: 0 4px; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 16px; }
 .cl-tag-input input::placeholder { color: var(--ink-3); }
-.cl-tag { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; height: 30px; padding: 0 2px 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); font-size: 13px; font-weight: 500; }
+.cl-tag-input input::-webkit-calendar-picker-indicator { display: none !important; }
+.cl-tag { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; height: 32px; padding: 0 2px 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2); font-size: 13.5px; font-weight: 500; }
 .cl-tag-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cl-tag button { display: grid; flex: none; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink-3); cursor: pointer; }
+.cl-tag button { position: relative; display: grid; flex: none; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink-3); cursor: pointer; }
+.cl-tag button::after { content: ""; position: absolute; inset: -6px; }
 .cl-tag button:hover { background: var(--hover); color: var(--ink); }
-.cl-addr-row { display: grid; gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface-2); }
-.cl-addr-remove { justify-self: end; }
+.cl-tag-ideas { display: flex; flex-wrap: wrap; gap: 6px; }
+.cl-tag-ideas .chip { color: var(--ink-2); }
+
+/* The client form: sections with room to breathe, one column on phones, two from 640px. */
+.cl-form { width: 100%; max-width: 760px; }
+.cl-form .form-grid { gap: 18px 16px; }
+.cl-form .card-body { padding-top: 14px; padding-bottom: 18px; }
+.cl-form .input[list]::-webkit-calendar-picker-indicator { display: none !important; }
+/* iOS Safari gives date inputs an intrinsic width that ignores width:100% and spills over the
+   next field; make it an ordinary block box. */
+.cl-form .input[type="date"] { display: block; width: 100%; min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; text-align: left; }
+.cl-form .input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+.cl-section-note { margin: 0 0 14px; color: var(--ink-2); font-size: 13px; line-height: 1.45; }
+.cl-addr-list { display: flex; flex-direction: column; gap: 12px; }
+.cl-addr { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 12px 14px 16px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--surface); }
+.cl-addr-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+.cl-addr-title { color: var(--ink); font-size: 14px; font-weight: 600; }
+.cl-addr-fields { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.cl-addr-fields > * { min-width: 0; }
+.cl-form-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px; padding-top: 4px; }
+.cl-hint-line { margin-top: 10px; }
+.cl-profile-stats .stat-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cl-sale-sub { font-weight: 400; }
+.cl-sale-badge { margin-top: 4px; }
 @media (min-width: 640px) {
-  .cl-addr-row { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; align-items: start; }
-  .cl-addr-remove { margin-top: 25px; }
+  .cl-addr-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: start; }
 }
 @media (min-width: 900px) {
   .cl-tag-input input { font-size: 14px; }
 }
 @media (max-width: 639.98px) {
   .cl-actions .btn { flex: 1 1 calc(50% - 8px); }
+  .cl-form-foot { position: sticky; bottom: calc(var(--tabbar-h, 0px) + var(--safe-b, 0px) + 8px); z-index: 5; margin: 0 -4px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--surface); box-shadow: var(--shadow-2, 0 6px 20px rgba(0, 0, 0, 0.12)); }
+  .cl-form-foot .btn { flex: 1 1 0; }
 }
 `;
 
@@ -466,7 +493,9 @@ function TagInput({ value, onChange, suggestions = [] }) {
     }
   }
 
-  return html`<div class="cl-tag-input" onClick=${(event) => event.target === event.currentTarget && inputRef.current?.focus()}>
+  const quick = full ? [] : ideas.slice(0, 6);
+  return html`<div class="stack stack-sm">
+  <div class="cl-tag-input" onClick=${(event) => event.target === event.currentTarget && inputRef.current?.focus()}>
     ${value.map((tag) => html`<span key=${tag} class="cl-tag">
       <span class="cl-tag-text">${tag}</span>
       <button type="button" aria-label=${`Remove tag ${tag}`} onClick=${() => remove(tag)}><${Icon} name="x" size=${14} /></button>
@@ -487,13 +516,20 @@ function TagInput({ value, onChange, suggestions = [] }) {
       onBlur=${() => text.trim() && add(text)}
     />
     <datalist id=${listId}>${ideas.map((tag) => html`<option key=${tag} value=${tag} />`)}</datalist>
+  </div>
+  ${quick.length > 0 && html`<div class="cl-tag-ideas" role="group" aria-label="Suggested tags">
+    ${quick.map((tag) => html`<button key=${tag} type="button" class="chip" onClick=${() => add(tag)}>+ ${tag}</button>`)}
+  </div>`}
   </div>`;
 }
 
-/** Drop-off addresses: a label ('Training ground') and an address picked or typed per row. */
+/**
+ * Drop-off addresses, each in its own box: "Address 1" with Remove, then a label ('Training
+ * ground') and the address picked or typed. A new row isn't focused: the address box opens its
+ * suggestions on focus, which would cover the row before anything is typed.
+ */
 function AddressRows({ store, rows, onChange, problems }) {
   const labelsId = useId('address-labels');
-  const [focusKey, setFocusKey] = useState(null);
 
   const update = (key, patch) => onChange(rows.map((row) => (row.key === key ? { ...row, ...patch } : row)));
 
@@ -505,48 +541,43 @@ function AddressRows({ store, rows, onChange, problems }) {
     update(key, { place, label });
   }
 
-  function addRow() {
-    const row = addressRow();
-    setFocusKey(row.key);
-    onChange([...rows, row]);
-  }
-
-  return html`<div class="stack-sm stack">
-    ${rows.length === 0 && html`<p class="muted small">
-      Add where you usually drop off — home, the training ground, the stadium. Drives to this client start from here.
-    </p>`}
-    ${rows.map((row, index) => html`<div key=${row.key} class="cl-addr-row">
-      <${Field} label="Label">
-        <${Input}
-          list=${labelsId}
-          value=${row.label}
-          maxlength="60"
-          placeholder="e.g. Training ground"
-          autocomplete="off"
-          onInput=${(event) => update(row.key, { label: event.currentTarget.value })}
-        />
-      <//>
-      <${Field} label="Address or postcode" error=${problems[row.key]}>
-        <${AddressInput}
-          store=${store}
-          value=${row.place}
-          onChange=${(place) => pickPlace(row.key, place)}
-          placeholder="Search an address or postcode"
-          autoFocus=${row.key === focusKey}
-        />
-      <//>
-      <${Button}
-        kind="ghost"
-        size="sm"
-        icon="trash"
-        class="cl-addr-remove"
-        aria-label=${`Remove address ${index + 1}`}
-        onClick=${() => onChange(rows.filter((entry) => entry.key !== row.key))}
-      >Remove<//>
+  return html`<div class="cl-addr-list">
+    ${rows.map((row, index) => html`<div key=${row.key} class="cl-addr">
+      <div class="cl-addr-head">
+        <span class="cl-addr-title">${clean(row.label) || `Address ${index + 1}`}</span>
+        <${Button}
+          kind="ghost"
+          size="sm"
+          icon="trash"
+          aria-label=${`Remove address ${index + 1}`}
+          onClick=${() => onChange(rows.filter((entry) => entry.key !== row.key))}
+        >Remove<//>
+      </div>
+      <div class="cl-addr-fields">
+        <${Field} label="Label">
+          <${Input}
+            list=${labelsId}
+            value=${row.label}
+            maxlength="60"
+            placeholder="e.g. Training ground"
+            autocomplete="off"
+            autocapitalize="words"
+            onInput=${(event) => update(row.key, { label: event.currentTarget.value })}
+          />
+        <//>
+        <${Field} label="Address or postcode" error=${problems[row.key]}>
+          <${AddressInput}
+            store=${store}
+            value=${row.place}
+            onChange=${(place) => pickPlace(row.key, place)}
+            placeholder="Search an address or postcode"
+          />
+        <//>
+      </div>
     </div>`)}
     <datalist id=${labelsId}>${ADDRESS_LABELS.map((label) => html`<option key=${label} value=${label} />`)}</datalist>
     ${rows.length < MAX_ADDRESSES && html`<div>
-      <${Button} icon="plus" onClick=${addRow}>${rows.length ? 'Add another address' : 'Add an address'}<//>
+      <${Button} icon="plus" onClick=${() => onChange([...rows, addressRow()])}>${rows.length ? 'Add another address' : 'Add an address'}<//>
     </div>`}
   </div>`;
 }
@@ -620,6 +651,12 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
   const setValue = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  // The box already shows '@'; a pasted '@handle' or profile link keeps just the handle.
+  const setInstagram = (event) => {
+    const raw = event.currentTarget.value;
+    const fromUrl = /instagram\.com\/([^/?#\s]+)/i.exec(raw);
+    setValue('instagram', (fromUrl ? fromUrl[1] : raw).replace(/^@+/, ''));
+  };
 
   async function submit(event) {
     event.preventDefault();
@@ -657,7 +694,8 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
   }
 
   const saveLabel = editing ? 'Save changes' : 'Add client';
-  // Shown above and below the form; a fresh set each time, as a vnode can't be mounted twice.
+  // Shown in the page header on desktop and in the form's footer; a fresh set each time, as a
+  // vnode can't be mounted twice.
   const buttons = () => html`
     <${Button} onClick=${cancel} disabled=${saving}>Cancel<//>
     <${Button} kind="primary" type="submit" form=${formId} icon="check" loading=${saving}>${saving ? 'Saving…' : saveLabel}<//>`;
@@ -665,8 +703,8 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
     ? html`You already have a client called ${duplicate.name}. <a href=${`#/clients/${duplicate.id}`}>Open their profile</a>`
     : undefined;
 
-  return html`<${Page} title=${title} back=${back} actions=${buttons()}>
-    <form id=${formId} ref=${formRef} class="stack" noValidate=${true} onSubmit=${submit} onKeyDown=${blockImplicitSubmit}>
+  return html`<${Page} title=${title} back=${back} actions=${html`<div class="row hide-mobile">${buttons()}</div>`}>
+    <form id=${formId} ref=${formRef} class="cl-form stack" noValidate=${true} onSubmit=${submit} onKeyDown=${blockImplicitSubmit}>
       <${Card} title="Player">
         <div class="form-grid">
           <${Field} label="Name" required error=${shown.name} hint=${nameHint} class="span-all">
@@ -675,6 +713,7 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
               maxlength=${MAX_NAME}
               autocomplete="off"
               autocapitalize="words"
+              autocorrect="off"
               placeholder="e.g. Marcus Rashford"
               onInput=${set('name')}
             />
@@ -688,35 +727,18 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
           <${Field} label="Squad number">
             <${Input} value=${form.squad_number} inputmode="numeric" maxlength="4" autocomplete="off" prefix="#" placeholder="7" onInput=${set('squad_number')} />
           <//>
-          <${Field} label="Birthday" error=${shown.birthday} hint="Desk reminds you when it's coming up.">
-            <${Input} type="date" value=${form.birthday} max=${todayISO()} onInput=${set('birthday')} />
-          <//>
         </div>
         <datalist id=${`${formId}-clubs`}>${suggestions.clubs.map((club) => html`<option key=${club} value=${club} />`)}</datalist>
         <datalist id=${`${formId}-positions`}>${suggestions.positions.map((name) => html`<option key=${name} value=${name} />`)}</datalist>
       <//>
 
-      <${Card} title="Sizes and preferences">
-        <div class="form-grid">
-          <${Field} label="Shoe size">
-            <${Input} value=${form.shoe_size} autocomplete="off" placeholder="e.g. UK 9" onInput=${set('shoe_size')} />
-          <//>
-          <${Field} label="Clothing size">
-            <${Input} value=${form.clothing_size} autocomplete="off" placeholder="e.g. M / 32W" onInput=${set('clothing_size')} />
-          <//>
-          <${Field} label="Preferences" hint="Brands, styles and colours they like — or won't wear." class="span-all">
-            <${Textarea} value=${form.preferences} placeholder="e.g. Jordan 1 Highs, Stone Island, no white trainers" onInput=${set('preferences')} />
-          <//>
-        </div>
-      <//>
-
       <${Card} title="Contact">
         <div class="form-grid">
-          <${Field} label="Phone" error=${shown.phone} hint="Used for Call and WhatsApp.">
+          <${Field} label="Phone" error=${shown.phone} hint=${shown.phone ? undefined : 'Used for Call and WhatsApp.'}>
             <${Input} type="tel" value=${form.phone} inputmode="tel" autocomplete="off" placeholder="07700 900123" onInput=${set('phone')} />
           <//>
           <${Field} label="Email" error=${shown.email}>
-            <${Input} type="email" value=${form.email} inputmode="email" autocomplete="off" autocapitalize="off" spellcheck=${false} onInput=${set('email')} />
+            <${Input} type="email" value=${form.email} inputmode="email" autocomplete="off" autocapitalize="off" spellcheck=${false} placeholder="name@example.com" onInput=${set('email')} />
           <//>
           <${Field} label="Instagram" error=${shown.instagram}>
             <${Input}
@@ -724,9 +746,10 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
               prefix="@"
               autocomplete="off"
               autocapitalize="off"
+              autocorrect="off"
               spellcheck=${false}
               placeholder="handle"
-              onInput=${set('instagram')}
+              onInput=${setInstagram}
             />
           <//>
         </div>
@@ -735,7 +758,7 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
       <${Card} title="Agent">
         <div class="form-grid">
           <${Field} label="Agent's name" class="span-all">
-            <${Input} value=${form.agent_name} autocomplete="off" autocapitalize="words" onInput=${set('agent_name')} />
+            <${Input} value=${form.agent_name} autocomplete="off" autocapitalize="words" autocorrect="off" onInput=${set('agent_name')} />
           <//>
           <${Field} label="Agent's phone" error=${shown.agent_phone}>
             <${Input} type="tel" value=${form.agent_phone} inputmode="tel" autocomplete="off" onInput=${set('agent_phone')} />
@@ -746,19 +769,35 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
         </div>
       <//>
 
-      <${Card} title="Drop-off addresses" subtitle="Pick a suggestion to pin it on the map, or type the full address.">
+      <${Card} title="Sizes and preferences">
+        <div class="form-grid">
+          <${Field} label="Shoe size">
+            <${Input} value=${form.shoe_size} autocomplete="off" placeholder="e.g. UK 9" onInput=${set('shoe_size')} />
+          <//>
+          <${Field} label="Clothing size">
+            <${Input} value=${form.clothing_size} autocomplete="off" placeholder="e.g. M / 32W" onInput=${set('clothing_size')} />
+          <//>
+          <${Field} label="Birthday" error=${shown.birthday} hint=${shown.birthday ? undefined : "Desk reminds you when it's coming up."}>
+            <${Input} type="date" value=${form.birthday} max=${todayISO()} onInput=${set('birthday')} />
+          <//>
+          <${Field} label="Preferences" hint="Brands, styles and colours they like — or won't wear." class="span-all">
+            <${Textarea} value=${form.preferences} placeholder="e.g. Jordan 1 Highs, Stone Island, no white trainers" onInput=${set('preferences')} />
+          <//>
+          <${Field} label="Tags" hint="Tap a suggestion, or type and press Enter." class="span-all">
+            <${TagInput} value=${form.tags} onChange=${(tags) => setValue('tags', tags)} suggestions=${suggestions.tags} />
+          <//>
+        </div>
+      <//>
+
+      <${Card} title="Drop-off addresses">
+        <p class="cl-section-note">
+          Where you usually drop off — home, the training ground, the stadium. Pick a suggestion to pin it on the map; drives to this client start from here.
+        </p>
         <${AddressRows} store=${store} rows=${form.addresses} onChange=${(rows) => setValue('addresses', rows)} problems=${shown} />
       <//>
 
-      <${Card} title="Tags and notes">
-        <div class="form-grid">
-          <${Field} label="Tags" hint="Press Enter or type a comma after each tag." class="span-all">
-            <${TagInput} value=${form.tags} onChange=${(tags) => setValue('tags', tags)} suggestions=${suggestions.tags} />
-          <//>
-          <${Field} label="Notes" class="span-all">
-            <${Textarea} value=${form.notes} rows=${4} placeholder="Anything worth remembering — who to deal with, when they're around, how they like to pay." onInput=${set('notes')} />
-          <//>
-        </div>
+      <${Card} title="Notes">
+        <${Textarea} aria-label="Notes" value=${form.notes} rows=${4} placeholder="Anything worth remembering — who to deal with, when they're around, how they like to pay." onInput=${set('notes')} />
       <//>
 
       ${editing && html`<${Card} title="Status">
@@ -770,7 +809,7 @@ function ClientForm({ store, client, title, back, onSaved, onCancel }) {
         />
       <//>`}
 
-      <div class="row row-end">${buttons()}</div>
+      <div class="cl-form-foot">${buttons()}</div>
     </form>
   <//>`;
 }
@@ -829,7 +868,7 @@ function ProfileHero({ client, onEdit }) {
       ${agentTel && html`<${Button} href=${agentTel} icon=${html`<${Glyph} name="phone" />`}>Call agent<//>`}
       <${Button} href=${`#/trips?client=${encodeURIComponent(client.id)}`} icon="car">Log a drive<//>
     </div>
-    ${!tel && !instagram && !email && html`<p class="small faint" style="margin-top:8px">
+    ${!tel && !instagram && !email && html`<p class="small muted cl-hint-line">
       Add a phone number to call or WhatsApp ${firstName(client.name)} from here.
     </p>`}
   <//>`;
@@ -840,38 +879,32 @@ function ProfileStats({ stats, target }) {
   const pending = Math.abs(stats.pendingProfit) > EPS;
   let profitSub = 'No sales yet';
   if (hasSales) {
-    profitSub = pending ? `${money(stats.pendingProfit)} still pending` : 'All realised';
-    if (stats.estimatedCount > 0) profitSub += ' (est.)';
+    profitSub = pending ? `${money(stats.pendingProfit)} pending` : 'All realised';
+    if (stats.estimatedCount > 0) profitSub += ' · est.';
   }
   let owedSub = hasSales ? 'All paid up' : '—';
   if (stats.owed > EPS) {
     owedSub = stats.dueNow > EPS && stats.dueNow < stats.owed - EPS
-      ? `${money(stats.dueNow)} on delivered sales`
-      : stats.dueNow > EPS ? 'For delivered sales' : 'On sales not yet handed over';
+      ? `${money(stats.dueNow)} delivered`
+      : stats.dueNow > EPS ? 'On delivered sales' : 'Not handed over yet';
   }
   const belowTarget = stats.margin !== null && target > 0 && stats.margin < target;
-  const salesSub = !hasSales ? 'None yet' : stats.open > 0 ? `${stats.open} open` : `Last ${relDays(stats.lastSale)}`;
+  const salesSub = !hasSales ? 'No sales yet' : [plural(stats.count, 'sale'), stats.open > 0 && `${stats.open} open`].filter(Boolean).join(' · ');
 
-  return html`<div class="kpis">
-    <${Stat} label="Sales" value=${String(stats.count)} sub=${salesSub} />
-    <${Stat} label="Revenue" value=${money(stats.revenue)} sub="Lifetime" />
+  return html`<div class="kpis cl-profile-stats">
     <${Stat}
       label="Profit"
       value=${money(stats.netProfit)}
       tone=${!hasSales ? undefined : stats.netProfit < -EPS ? 'loss' : 'gain'}
       sub=${profitSub}
     />
+    <${Stat} label="Owed" value=${money(stats.owed)} tone=${stats.owed > EPS ? 'warn' : undefined} sub=${owedSub} />
+    <${Stat} label="Revenue" value=${money(stats.revenue)} sub=${salesSub} />
     <${Stat}
       label="Avg margin"
       value=${pct(stats.margin)}
       tone=${belowTarget ? 'warn' : undefined}
       sub=${target > 0 ? `Target ${pct(target)}` : 'Profit ÷ revenue'}
-    />
-    <${Stat} label="Owed" value=${money(stats.owed)} tone=${stats.owed > EPS ? 'warn' : undefined} sub=${owedSub} />
-    <${Stat}
-      label="Per driving hour"
-      value=${stats.perDrivingHour === null ? '—' : money(stats.perDrivingHour)}
-      sub=${stats.drivingMinutes > 0 ? `${formatMiles(stats.miles)} · ${duration(stats.drivingMinutes)} driving` : 'No drives logged'}
     />
   </div>`;
 }
@@ -887,7 +920,26 @@ function itemsSummary(items) {
   return rest > 0 ? `${names.join(', ')} +${rest} more` : names.join(', ');
 }
 
+function SaleListRow({ deal }) {
+  const totals = dealTotals(deal);
+  const status = statusMeta[deal.status] ?? statusMeta.agreed;
+  const payment = paymentMeta[totals.paymentStatus] ?? paymentMeta.none;
+  const cancelled = deal.status === 'cancelled';
+  const toBuy = (deal.items ?? []).filter((item) => item.cost_status !== 'actual').length;
+  const meta = [status.label, !cancelled && totals.paymentStatus !== 'none' && payment.label].filter(Boolean).join(' · ');
+  return html`<${ListRow}
+    href=${`#/sales/${deal.id}`}
+    title=${`${clean(deal.title) || itemsSummary(deal.items)}`}
+    badge=${toBuy > 0 && !cancelled && html`<span class="pill pill-warn">${toBuy} to buy</span>`}
+    subtitle=${`${dealNumber(deal.number)} · ${saleDateText(deal.sale_date)}`}
+    amount=${html`<${Money} value=${totals.netProfit} tone=${cancelled ? 'muted' : 'auto'} />${totals.certainty === 'estimated' && !cancelled ? html`<span class="tone-warn small"> est.</span>` : ''}`}
+    meta=${meta}
+    metaTone=${!cancelled && totals.paymentStatus === 'unpaid' && deal.status !== 'enquiry' ? 'warn' : undefined}
+  />`;
+}
+
 function SalesCard({ client, deals, navigate }) {
+  const phone = usePhone();
   const live = deals.filter((deal) => deal.status !== 'cancelled').length;
   const cancelled = deals.length - live;
   const subtitle = deals.length === 0 ? null : [plural(live, 'sale'), cancelled > 0 && `${cancelled} cancelled`].filter(Boolean).join(' · ');
@@ -901,7 +953,9 @@ function SalesCard({ client, deals, navigate }) {
           body=${`Log a sale for ${firstName(client.name)} as soon as it's agreed — even before you've bought the item.`}
           action=${html`<${Button} kind="primary" icon="plus" onClick=${() => startSale(client, navigate)}>New sale for ${firstName(client.name)}<//>`}
         />`
-      : html`<div class="table-wrap">
+      : phone
+        ? html`<ul class="lr-list">${deals.map((deal) => html`<${SaleListRow} key=${deal.id} deal=${deal} />`)}</ul>`
+        : html`<div class="table-wrap">
           <table class="table">
             <thead>
               <tr>
@@ -931,15 +985,15 @@ function SaleRow({ deal, navigate }) {
   return html`<tr class="is-clickable" onClick=${() => navigate(href)}>
     <td class="cell-primary">
       <a href=${href} class="mono" onClick=${(event) => event.stopPropagation()}>${dealNumber(deal.number)}</a>
-      <span class="small faint nowrap" style="font-weight:400"> · ${saleDateText(deal.sale_date)}</span>
-      <div class="small muted cl-clamp" style="font-weight:400">
+      <span class="small faint nowrap cl-sale-sub"> · ${saleDateText(deal.sale_date)}</span>
+      <div class="small muted cl-clamp cl-sale-sub">
         ${clean(deal.title) ? `${deal.title.trim()} · ` : ''}${itemsSummary(deal.items)}
       </div>
       ${toBuy > 0 && !cancelled && html`<span class="pill pill-warn">${toBuy} to buy</span>`}
     </td>
     <td data-label="Status">
       <div><${Badge} tone=${status.tone}>${status.label}<//></div>
-      ${!cancelled && totals.paymentStatus !== 'none' && html`<div style="margin-top:4px">
+      ${!cancelled && totals.paymentStatus !== 'none' && html`<div class="cl-sale-badge">
         <${Badge} tone=${payment.tone}>${payment.label}<//>
       </div>`}
       ${!cancelled && totals.paymentStatus === 'part' && html`<div class="tiny faint">${money(totals.balance)} due</div>`}
@@ -958,12 +1012,16 @@ function shortPlace(label, address) {
   return text ? text.split(',')[0].trim() : null;
 }
 
-function DrivesCard({ client, trips }) {
+function DrivesCard({ client, trips, stats }) {
+  const phone = usePhone();
   const logDrive = `#/trips?client=${encodeURIComponent(client.id)}`;
   const totals = trips.map((trip) => ({ trip, t: tripTotals(trip) }));
   const milesDriven = totals.reduce((sum, { t }) => sum + t.miles, 0);
   const cashCost = totals.reduce((sum, { t }) => sum + t.cashCost, 0);
-  const subtitle = trips.length ? `${plural(trips.length, 'drive')} · ${formatMiles(milesDriven)} · ${money(cashCost)} fuel and costs` : null;
+  const perHour = stats?.perDrivingHour ?? null;
+  const subtitle = trips.length
+    ? [plural(trips.length, 'drive'), formatMiles(milesDriven), `${money(cashCost)} costs`, perHour !== null && `${money(perHour)} per driving hour`].filter(Boolean).join(' · ')
+    : null;
 
   return html`<${Card}
     pad=${false}
@@ -978,7 +1036,20 @@ function DrivesCard({ client, trips }) {
           body="Log the drive when you drop off — Desk works out the fuel, your time and what the sale really made per hour."
           action=${html`<${Button} icon="car" href=${logDrive}>Log a drive<//>`}
         />`
-      : html`<div class="table-wrap">
+      : phone
+        ? html`<ul class="lr-list">${totals.map(({ trip, t }) => {
+            const to = shortPlace(trip.dest_label, trip.dest_address) ?? 'Drive';
+            const name = clean(trip.label);
+            return html`<${ListRow}
+              key=${trip.id}
+              href=${trip.deal ? `#/sales/${trip.deal.id}` : '#/trips'}
+              title=${name || `To ${to}`}
+              subtitle=${[formatDate(trip.trip_date), trip.deal && dealNumber(trip.deal.number), trip.round_trip ? 'There and back' : 'One way'].filter(Boolean).join(' · ')}
+              amount=${money(t.cashCost)}
+              meta=${`${formatMiles(t.miles)} · ${duration(t.totalMinutes)}`}
+            />`;
+          })}</ul>`
+        : html`<div class="table-wrap">
           <table class="table">
             <thead>
               <tr>
@@ -997,7 +1068,7 @@ function DrivesCard({ client, trips }) {
                 return html`<tr key=${trip.id}>
                   <td class="cell-primary">
                     <span class="truncate">${name || `To ${to}`}</span>
-                    <div class="small muted" style="font-weight:400">${trip.round_trip ? 'There and back' : 'One way'}${name ? ` · ${to}` : ''}</div>
+                    <div class="small muted cl-sale-sub">${trip.round_trip ? 'There and back' : 'One way'}${name ? ` · ${to}` : ''}</div>
                   </td>
                   <td data-label="Date" class="nowrap">${formatDate(trip.trip_date)}</td>
                   <td data-label="Sale">${trip.deal
@@ -1021,11 +1092,7 @@ function DetailsCard({ client, onEdit }) {
   const link = (href, text, external = false) => (href
     ? html`<a href=${href} target=${external ? '_blank' : undefined} rel=${external ? 'noopener noreferrer' : undefined}>${text}</a>`
     : text);
-  const number = squadNumber(client.squad_number);
   const rows = [
-    ['Club', clean(client.club)],
-    ['Position', clean(client.position)],
-    ['Squad number', number && `#${number}`],
     ['Birthday', birthday && formatDate(client.birthday)],
     ['Phone', clean(client.phone) && link(telHref(client.phone), client.phone.trim())],
     ['Email', clean(client.email) && link(emailHref(client.email), client.email.trim())],
@@ -1260,7 +1327,7 @@ function ClientProfile({ store, id, params, navigate }) {
     <div class="cl-layout">
       <div class="cl-main stack">
         <${SalesCard} client=${client} deals=${deals} navigate=${navigate} />
-        <${DrivesCard} client=${client} trips=${trips} />
+        <${DrivesCard} client=${client} trips=${trips} stats=${stats} />
       </div>
       <div class="cl-side stack">
         <${DetailsCard} client=${client} onEdit=${startEdit} />

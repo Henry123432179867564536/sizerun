@@ -41,7 +41,7 @@ const CSS = `
 .tp-more > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 12px; font-weight: 500; list-style: none; cursor: pointer; }
 .tp-more > summary::-webkit-details-marker { display: none; }
 .tp-more > summary > .tp-more-title { flex: none; white-space: nowrap; }
-.tp-more > summary .tp-more-sub { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--ink-2); font-size: 13px; font-weight: 400; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.tp-more > summary .tp-more-sub { display: -webkit-box; flex: 1 1 auto; min-width: 0; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--ink-2); font-size: 13px; font-weight: 400; line-height: 1.35; text-align: right; }
 .tp-more > summary .icon { flex: none; color: var(--ink-3); transition: transform 0.15s; }
 .tp-more[open] > summary .icon { transform: rotate(180deg); }
 .tp-more-body { display: flex; flex-direction: column; gap: 18px; padding: 6px 12px 14px; }
@@ -50,10 +50,13 @@ const CSS = `
 .tp-breakdown .kv > div { padding: 5px 0; }
 .tp-breakdown-empty { padding: 6px 0 2px; color: var(--ink-3); font-size: 13px; }
 .tp-tip { color: var(--ink-3); font-size: 12.5px; }
-@container (min-width: 440px) {
+/* One column on phones; side by side only when each field keeps room for its value and affix. */
+.tp-places { align-items: start; }
+.tp-grid > * { min-width: 0; }
+@container (min-width: 520px) {
   .tp-places, .tp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@container (min-width: 480px) {
+@container (min-width: 640px) {
   .tp-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @container (min-width: 820px) {
@@ -320,8 +323,9 @@ function NumField({ label, hint, error, value, onValue, onTouch, emptyValue = nu
   return html`<${Field} label=${label} hint=${hint} error=${localError || error} required=${required}>
     <${Input}
       type="text"
-      inputmode="decimal"
+      inputmode=${integer ? 'numeric' : 'decimal'}
       autocomplete="off"
+      autocorrect="off"
       enterkeyhint="next"
       value=${draft}
       placeholder=${placeholder}
@@ -664,8 +668,7 @@ export default function TripPlanner({
         value=${trip.hourly_rate}
         onValue=${(n) => update({ hourly_rate: n })}
         emptyValue=${0}
-        prefix="£"
-        suffix="/h"
+        suffix="£/h"
         hint="What an hour of yours is worth"
       />
       <${NumField}
@@ -673,8 +676,7 @@ export default function TripPlanner({
         value=${trip.vehicle_cost_per_mile}
         onValue=${(n) => update({ vehicle_cost_per_mile: n })}
         emptyValue=${0}
-        prefix="£"
-        suffix="/mi"
+        suffix="£/mi"
         hint="Not fuel — leave 0 to skip"
       />
       <${NumField}
@@ -714,6 +716,7 @@ export default function TripPlanner({
         value=${origin}
         onChange=${setPlace('origin')}
         placeholder="Where you set off"
+        locate="Start from my location"
       />
       <${AddressInput}
         store=${store}
@@ -721,6 +724,7 @@ export default function TripPlanner({
         value=${destination}
         onChange=${setPlace('dest')}
         placeholder="Drop-off address or postcode"
+        locate="I'm at the drop-off now"
       />
     </div>
 

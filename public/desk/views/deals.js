@@ -52,22 +52,107 @@ import {
 // Written by the deal checker's "Turn into a sale": { client_id, items, costs, trip }.
 const PREFILL_KEY = 'sizemill.desk.prefill';
 
+// The New sale form's unsaved work, kept for a back swipe or an evicted tab.
+const DRAFT_KEY = 'sizemill.desk.newSaleDraft';
+
 // numeric(12,2) holds up to 9,999,999,999.99.
 const MAX_AMOUNT = 1e10;
 const MAX_QTY = 100000;
+// Clients offered before anything is typed, and matches shown once it is.
+const PICKER_RECENT = 3;
 const PICKER_LIMIT = 6;
 
-// Inline layout that desk.css has no class for. Field grid: auto-fitting columns, two-up even
-// on a phone (desk.css .form-grid is one column below 640px, too tall for an item line).
-export const FIELD_GRID = 'display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(100%,128px),1fr))';
-// A bordered box around a picked client or drive.
-export const BOXED = 'border:1px solid var(--line);border-radius:var(--r-ctl);overflow:hidden';
-const BOXED_PAD = `${BOXED};padding:12px`;
-// New sale: form column beside a sticky totals column once both fit (≈1180px wide windows);
-// below that the totals wrap under the form, next to the Save button.
-const FORM_LAYOUT = 'gap:20px';
-const FORM_MAIN = 'flex:999 1 560px;min-width:0';
-const FORM_SIDE = 'flex:1 1 300px;min-width:0;position:sticky;top:24px';
+// Styles for the sales screens (this file and views/deal.js), added to <head> once, the way
+// views/calculator.js does. Field pairs are explicit (never auto-fit, so nothing is stranded or
+// squeezed); dates take the full width on phones, where iOS date controls ignore narrow widths.
+const CSS = `
+.sf-grid { display: grid; gap: 16px 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sf-grid > * { min-width: 0; }
+.sf-grid > .span-all { grid-column: 1 / -1; }
+.sf-grid.sf-qty { grid-template-columns: minmax(0, 1fr) 96px; }
+@media (max-width: 639.98px) { .sf-grid > .sf-wide { grid-column: 1 / -1; } }
+@media (min-width: 640px) { .sf-grid.sf-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.sf-box { overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.sf-box-pad { padding: 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.sf-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 36px; }
+.sf-head-title { color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.sf-sum { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 10px 12px; border-radius: var(--r-ctl); background: var(--surface-2); color: var(--ink-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.sf-note { margin: 0; color: var(--ink-2); font-size: 13px; }
+.sf-more > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; color: var(--ink); font-size: 14px; font-weight: 600; list-style: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.sf-more > summary::-webkit-details-marker { display: none; }
+.sf-more > summary .sf-more-hint { flex: 1 1 auto; min-width: 0; overflow: hidden; color: var(--ink-2); font-weight: 400; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.sf-more > summary .icon { flex: none; color: var(--ink-3); transition: transform 0.15s; }
+.sf-more[open] > summary .icon { transform: rotate(180deg); }
+.sf-more[open] > summary { margin-bottom: 8px; }
+.sf-foot-left { margin-right: auto; }
+.sf-bar { position: sticky; z-index: 5; bottom: calc(var(--tabbar-h) + var(--safe-b) + 10px); grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; border: 1px solid var(--line-2); border-radius: var(--r-panel); background: var(--glass-surface); box-shadow: var(--shadow-pop); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.sf-bar-text { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; line-height: 1.3; }
+.sf-bar-main { overflow: hidden; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sf-bar-sub { overflow: hidden; color: var(--ink-2); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.sf-bar .btn { flex: none; }
+@media (min-width: 900px) { .sf-bar { bottom: 16px; } }
+
+.ns-form { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.ns-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.ns-side-save { display: none; }
+@media (min-width: 1100px) {
+  .ns-form { grid-template-columns: minmax(0, 1fr) 340px; }
+  .ns-side { position: sticky; top: 24px; }
+  .ns-side-save { display: flex; flex-direction: column; gap: 8px; }
+  .ns-form > .sf-bar { display: none; }
+}
+
+.sales-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 150px); gap: 8px; align-items: center; }
+.sales-toolbar > * { min-width: 0; }
+@media (max-width: 639.98px) {
+  .sales-tabs .tabs { -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); mask-image: linear-gradient(90deg, #000 85%, transparent); }
+}
+.sales-table { display: none; }
+@media (min-width: 640px) { .sales-table { display: block; } .sales-rows { display: none; } }
+.sale-row.list-item { align-items: flex-start; gap: 12px; min-height: 64px; padding: 10px 16px; }
+.sale-row .list-title { font-weight: 600; }
+.sale-row-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 3px; color: var(--ink-2); font-size: 12.5px; }
+.sale-amt { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.sale-amt-sub { color: var(--ink-3); font-size: 12px; font-variant-numeric: tabular-nums; }
+.sale-dot { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sale-dot::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
+.sale-dot[data-tone="signal"]::before { background: var(--signal); }
+.sale-dot[data-tone="gain"]::before { background: var(--gain); }
+.sale-dot[data-tone="warn"]::before { background: var(--warn); }
+.sale-dot[data-tone="loss"]::before { background: var(--loss); }
+.sale-dot[data-tone="loss"] { color: var(--loss); }
+`;
+
+const STYLE_ID = 'desk-sales-styles';
+if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = CSS;
+  document.head.append(style);
+}
+
+/** True while the media query matches (re-renders when it changes). */
+export function useMedia(query) {
+  const read = () => (typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false);
+  const [matches, setMatches] = useState(read);
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const list = window.matchMedia(query);
+    const update = () => setMatches(list.matches);
+    update();
+    list.addEventListener?.('change', update);
+    return () => list.removeEventListener?.('change', update);
+  }, [query]);
+  return matches;
+}
+
+/** A <details> disclosure: summary line (with an optional hint on the right) and its content. */
+export function Disclosure({ title, hint, open, children, class: classAttr }) {
+  return html`<details class=${cx('sf-more', classAttr)} open=${Boolean(open)}>
+    <summary><span>${title}</span>${hint && html`<span class="sf-more-hint">${hint}</span>`}<${Icon} name="chevron-down" size=${18} /></summary>
+    ${children}
+  </details>`;
+}
 
 // ---------------------------------------------------------------------------------------------
 // Labels shared with views/deal.js
@@ -601,7 +686,7 @@ export function ClientPicker({ store, clients = [], value, onChange, recentIds =
     if (tokens.length === 0) {
       const recent = [...new Set(recentIds)].map((id) => known.get(id)).filter((client) => client && !client.archived);
       const recentSet = new Set(recent);
-      return [...recent, ...active.filter((client) => !recentSet.has(client))].slice(0, PICKER_LIMIT);
+      return [...recent, ...active.filter((client) => !recentSet.has(client))].slice(0, PICKER_RECENT);
     }
     return active.filter((client) => {
       const haystack = clientHaystack(client);
@@ -623,7 +708,7 @@ export function ClientPicker({ store, clients = [], value, onChange, recentIds =
   const selected = value ? known.get(value) ?? null : null;
   let body;
   if (value) {
-    body = html`<div class="list" style=${BOXED}>
+    body = html`<div class="list sf-box">
       <div class="list-item">
         <span class="sheet-link-icon" aria-hidden="true"><${Icon} name="user" size=${18} /></span>
         <div class="list-main">
@@ -651,7 +736,7 @@ export function ClientPicker({ store, clients = [], value, onChange, recentIds =
       <div onKeyDown=${onKeyDown}>
         <${SearchBox} value=${query} onInput=${setQuery} placeholder="Search clients by name or club" label="Search clients" />
       </div>
-      <div class="list" style=${BOXED} role="group" aria-labelledby=${labelId}>
+      <div class="list sf-box" role="group" aria-labelledby=${labelId}>
         ${matches.map((client) => html`<button key=${client.id} type="button" class="list-item" onClick=${() => choose(client)}>
           <div class="list-main">
             <div class="list-title">${client.name}</div>
@@ -665,7 +750,6 @@ export function ClientPicker({ store, clients = [], value, onChange, recentIds =
           <span class="list-main strong">${query.trim() ? `Add “${query.trim()}” as a new client` : 'New client'}</span>
         </button>
       </div>
-      <p class="tiny faint">Optional — a sale with a client shows on their profile and gets their drop-off address.</p>
     </div>`;
   }
 
@@ -712,20 +796,20 @@ function QuickClient({ store, initialName, onCreated, onCancel }) {
     create();
   };
 
-  return html`<div class="stack-sm" style=${BOXED_PAD} ref=${boxRef} onKeyDown=${onKeyDown}>
-    <div style=${FIELD_GRID}>
-      <${Field} label="Name" required error=${error}>
-        <${Input} value=${name} autocomplete="off" onInput=${(event) => setName(event.currentTarget.value)} />
+  return html`<div class="stack sf-box-pad" ref=${boxRef} onKeyDown=${onKeyDown}>
+    <div class="sf-grid">
+      <${Field} label="Name" required error=${error} class="sf-wide">
+        <${Input} value=${name} autocomplete="off" autocapitalize="words" onInput=${(event) => setName(event.currentTarget.value)} />
       <//>
-      <${Field} label="Club">
-        <${Input} value=${club} autocomplete="off" placeholder="e.g. Southampton" onInput=${(event) => setClub(event.currentTarget.value)} />
+      <${Field} label="Club" class="sf-wide">
+        <${Input} value=${club} autocomplete="off" autocapitalize="words" placeholder="e.g. Southampton" onInput=${(event) => setClub(event.currentTarget.value)} />
       <//>
     </div>
-    <div class="row">
-      <${Button} kind="primary" size="sm" icon="plus" loading=${saving} onClick=${create}>Add client<//>
-      <${Button} kind="ghost" size="sm" onClick=${onCancel} disabled=${saving}>Cancel<//>
+    <p class="sf-note">Add sizes, addresses and their agent later on their profile.</p>
+    <div class="row row-end">
+      <${Button} kind="ghost" onClick=${onCancel} disabled=${saving}>Cancel<//>
+      <${Button} kind="primary" icon="plus" loading=${saving} onClick=${create}>Add client<//>
     </div>
-    <p class="tiny faint">Add sizes, addresses and their agent later on their profile.</p>
   </div>`;
 }
 
@@ -779,35 +863,44 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
     });
   };
 
+  const priceField = html`<${Field} label="Sale price each" required error=${errors.unit_price}>
+    <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.unit_price} onInput=${text('unit_price')} />
+  <//>`;
+
+  // Where it comes from: the price pairs with its cost, then who from and when.
   let sourceFields;
   if (draft.source === 'buy') {
-    sourceFields = html`<div style=${FIELD_GRID}>
+    sourceFields = html`<div class="sf-grid">
+      ${priceField}
       <${Field} label="Expected cost each" required error=${errors.expected_unit_cost}>
         <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.expected_unit_cost} onInput=${text('expected_unit_cost')} />
       <//>
-      <${Field} label="Buying from">
+      <${Field} label="Buying from" class="span-all" hint="Your best guess. Profit stays estimated until you mark it bought.">
         <${Input} autocomplete="off" placeholder="e.g. Nike app, StockX" value=${draft.supplier} onInput=${text('supplier')} />
       <//>
-    </div>
-    <p class="tiny faint">Your best guess. Profit stays pending until you mark it bought.</p>`;
+    </div>`;
   } else if (draft.source === 'bought') {
     const hint = draft.keepExpected ? varianceHint(row, row.qty) : null;
-    sourceFields = html`<div style=${FIELD_GRID}>
+    sourceFields = html`<div class="sf-grid">
+      ${priceField}
       <${Field} label="Paid each" required error=${errors.unit_cost} hint=${hint}>
         <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.unit_cost} onInput=${text('unit_cost')} />
       <//>
-      <${Field} label="Bought from">
+      <${Field} label="Bought from" class="sf-wide">
         <${Input} autocomplete="off" placeholder="e.g. Selfridges" value=${draft.supplier} onInput=${text('supplier')} />
       <//>
-      <${Field} label="Bought on">
+      <${Field} label="Bought on" class="sf-wide">
         <${Input} type="date" max=${today} value=${draft.sourced_at} onInput=${text('sourced_at')} />
       <//>
     </div>`;
   } else if (stockChoices.length === 0) {
-    sourceFields = html`<p class="small muted">
-      Nothing in stock right now. Add what you hold on the <a href="#/stock">Stock</a> page, or pick
-      "Need to buy" or "Bought".
-    </p>`;
+    sourceFields = html`<div class="stack">
+      <p class="sf-note">
+        Nothing in stock right now. Add what you hold on the <a href="#/stock">Stock</a> page, or pick
+        "Need to buy" or "Bought".
+      </p>
+      ${priceField}
+    </div>`;
   } else {
     const hint = chosen
       ? [
@@ -816,41 +909,36 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
         chosen.stock.supplier && `from ${chosen.stock.supplier}`,
       ].filter(Boolean).join(' · ')
       : null;
-    sourceFields = html`<${Field} label="Stock item" required error=${errors.stock_item_id} hint=${hint}>
-      <${Select}
-        value=${draft.stock_item_id}
-        placeholder="Choose what you're selling"
-        options=${stockChoices.map((choice) => ({ value: choice.stock.id, label: stockLabel(choice) }))}
-        onChange=${(event) => pickStock(event.currentTarget.value)}
-      />
-    <//>`;
+    sourceFields = html`<div class="stack">
+      <${Field} label="Stock item" required error=${errors.stock_item_id} hint=${hint}>
+        <${Select}
+          value=${draft.stock_item_id}
+          placeholder="Choose what you're selling"
+          options=${stockChoices.map((choice) => ({ value: choice.stock.id, label: stockLabel(choice) }))}
+          onChange=${(event) => pickStock(event.currentTarget.value)}
+        />
+      <//>
+      ${priceField}
+    </div>`;
   }
 
-  const stockQtyHint = draft.source === 'stock' && chosen && maxQty !== undefined ? `${Math.max(0, maxQty)} available` : null;
+  const stockQtyHint = draft.source === 'stock' && chosen && maxQty !== undefined ? `${Math.max(0, maxQty)} left` : null;
+  const extras = [draft.brand, draft.sku].map(trimmed).filter(Boolean).join(' · ');
 
-  return html`<div class="stack-sm">
-    <div class="row row-between">
-      <span class="strong">${title}</span>
+  return html`<div class="stack">
+    ${(title || onRemove) && html`<div class="sf-head">
+      <span class="sf-head-title">${title}</span>
       ${onRemove && html`<${Button} kind="ghost" size="sm" icon="trash" onClick=${onRemove} aria-label=${`Remove ${title}`}>Remove<//>`}
-    </div>
+    </div>`}
     <${Field} label="Description" required error=${errors.description}>
-      <${Input} autocomplete="off" placeholder="e.g. Nike Air Jordan 1 Chicago" value=${draft.description} onInput=${text('description')} />
+      <${Input} autocomplete="off" autocapitalize="words" placeholder="e.g. Nike Air Jordan 1 Chicago" value=${draft.description} onInput=${text('description')} />
     <//>
-    <div style=${FIELD_GRID}>
-      <${Field} label="Brand">
-        <${Input} autocomplete="off" value=${draft.brand} onInput=${text('brand')} />
-      <//>
+    <div class="sf-grid sf-qty">
       <${Field} label="Size">
         <${Input} autocomplete="off" placeholder="e.g. UK 9" value=${draft.size} onInput=${text('size')} />
       <//>
       <${Field} label="Qty" required error=${errors.qty} hint=${stockQtyHint}>
         <${Input} inputmode="numeric" autocomplete="off" value=${draft.qty} onInput=${text('qty')} />
-      <//>
-      <${Field} label="Sale price each" required error=${errors.unit_price}>
-        <${Input} prefix="£" inputmode="decimal" autocomplete="off" placeholder="0.00" value=${draft.unit_price} onInput=${text('unit_price')} />
-      <//>
-      <${Field} label="SKU">
-        <${Input} autocomplete="off" value=${draft.sku} onInput=${text('sku')} />
       <//>
     </div>
     <div class="field">
@@ -864,11 +952,21 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
       />
     </div>
     ${sourceFields}
-    <p class="small muted row" style="gap:2px 12px">
+    <${Disclosure} title="Brand and SKU" hint=${extras || 'Optional'} open=${false}>
+      <div class="sf-grid">
+        <${Field} label="Brand">
+          <${Input} autocomplete="off" autocapitalize="words" value=${draft.brand} onInput=${text('brand')} />
+        <//>
+        <${Field} label="SKU">
+          <${Input} autocomplete="off" autocapitalize="characters" value=${draft.sku} onInput=${text('sku')} />
+        <//>
+      </div>
+    <//>
+    <div class="sf-sum" aria-live="polite">
       <span>${num(row.qty)} × ${money(num(row.unit_price))} = ${money(line.revenue)}</span>
       <span>Cost ${money(line.cost)}${line.isExpected && html` <span class="pill pill-warn">est.</span>`}</span>
       <span>Profit <${Money} value=${line.revenue - line.cost} tone="auto" /></span>
-    </p>
+    </div>
   </div>`;
 }
 

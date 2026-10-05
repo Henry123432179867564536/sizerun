@@ -77,9 +77,16 @@
   --r-ctl: 6px;
   --ctl-h: 44px;
   --ctl-h-sm: 36px;
+  --field-border: #ABABA2;
+  --field-gap: 16px;
+  --section-gap: 24px;
+  --card-pad: 16px;
   --sidebar-w: 236px;
   --topbar-h: 52px;
-  --tabbar-h: 58px;
+  /* --tabbar-h drops to 0 while a text field is focused (html.is-typing hides the tab bar);
+     --tabbar-h0 is the bar's real height for padding that must not jump. */
+  --tabbar-h0: 58px;
+  --tabbar-h: var(--tabbar-h0);
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -117,7 +124,8 @@
     --backdrop: rgba(0, 0, 0, 0.6);
     --glass-paper: rgba(18, 20, 23, 0.94);
     --glass-surface: rgba(26, 29, 34, 0.95);
-    --seg-on: #2C3239;
+    --seg-on: #353C45;
+    --field-border: #4F5660;
     --shadow-1: none;
     --shadow-pop: 0 18px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px #2A2F36;
     --inv-bg: #E8EAED;
@@ -129,10 +137,16 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px) and (pointer: fine) {
   :root {
     --ctl-h: 36px;
     --ctl-h-sm: 30px;
+  }
+}
+
+@media (min-width: 900px) {
+  :root {
+    --card-pad: 20px;
   }
 }
 
@@ -147,6 +161,17 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* Focus scrolls and scrollIntoView() keep clear of the sticky top bar and the tab bar
+     (plus a sticky form bar, when a view publishes --formbar-h). */
+  scroll-padding-top: calc(var(--topbar-h) + var(--safe-t) + 12px);
+  scroll-padding-bottom: calc(var(--tabbar-h) + var(--safe-b) + var(--formbar-h, 0px) + 16px);
+}
+
+@media (min-width: 900px) {
+  html {
+    scroll-padding-top: 24px;
+    scroll-padding-bottom: calc(var(--formbar-h, 0px) + 24px);
+  }
 }
 
 body {
@@ -165,7 +190,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-@media (min-width: 900px) {
+@media (min-width: 900px) and (pointer: fine) {
   body {
     font-size: 14px;
   }
@@ -308,8 +333,21 @@ hr {
   min-width: 0;
 }
 
+.stack-sm,
+.stack-lg {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
 .stack-sm { gap: 8px; }
 .stack-lg { gap: 24px; }
+
+/* A small stack that holds form fields still gets a full field gap, so a label never sits
+   right under the control above it. */
+.stack-sm:has(> .field, > .form-grid, > .fields, > .field-pair, > .switch, > .segmented) {
+  gap: var(--field-gap);
+}
 
 .row {
   display: flex;
@@ -334,7 +372,9 @@ hr {
 
 .grid > *,
 .kpis > *,
-.form-grid > * {
+.form-grid > *,
+.fields > *,
+.field-pair > * {
   min-width: 0;
 }
 
@@ -344,10 +384,66 @@ hr {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.form-grid {
+.form-grid,
+.fields {
   display: grid;
-  gap: 14px 16px;
+  gap: var(--field-gap) 12px;
   grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+/* Two short fields that stay side by side even on a phone (Size | Qty, £ | £, date | select). */
+.field-pair {
+  display: grid;
+  gap: var(--field-gap) 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+/* Field rows: one column on phones, two from 520px (.fields.cols-3: three from 900px). */
+@media (min-width: 520px) {
+  .form-grid,
+  .fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 16px;
+  }
+}
+
+@media (min-width: 900px) {
+  .fields.cols-3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.fields > .span-all,
+.fields > .field-full,
+.form-grid > .field-full,
+.form-grid > .switch,
+.form-grid > .segmented,
+.fields > .switch,
+.fields > .segmented {
+  grid-column: 1 / -1;
+}
+
+/* Legacy inline field grids (style="display:grid;…auto-fit,minmax(min(100%,128px),1fr)"):
+   one column on narrow phones so dates and long labels never squeeze. */
+@media (max-width: 519.98px) {
+  [style*="auto-fit,minmax(min(100%,128px)"],
+  [style*="auto-fit, minmax(min(100%, 128px)"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+    row-gap: var(--field-gap) !important;
+  }
+}
+
+[style*="auto-fit,minmax(min(100%,128px)"],
+[style*="auto-fit, minmax(min(100%, 128px)"] {
+  align-items: start;
+  row-gap: var(--field-gap) !important;
+}
+
+[style*="auto-fit,minmax(min(100%,128px)"] > *,
+[style*="auto-fit, minmax(min(100%, 128px)"] > * {
+  min-width: 0;
 }
 
 .span-all {
@@ -357,8 +453,7 @@ hr {
 @media (min-width: 640px) {
   .cols-2,
   .cols-3,
-  .cols-4,
-  .form-grid {
+  .cols-4 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -647,7 +742,7 @@ hr {
   max-width: 1240px;
   min-width: 0;
   margin: 0 auto;
-  padding: 16px max(16px, var(--safe-r)) calc(var(--tabbar-h) + var(--safe-b) + 28px) max(16px, var(--safe-l));
+  padding: 16px max(16px, var(--safe-r)) calc(var(--tabbar-h0) + var(--safe-b) + 28px) max(16px, var(--safe-l));
 }
 
 .main:focus {
@@ -1013,13 +1108,16 @@ hr {
 .card-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px 12px;
-  padding: 14px 16px 0;
+  padding: var(--card-pad) var(--card-pad) 0;
 }
 
+/* Titles take the room and wrap inside it; the actions keep to the right instead of dropping
+   onto a line of their own unless the title would get really narrow. */
 .card-titles {
+  flex: 1 1 9rem;
   min-width: 0;
 }
 
@@ -1038,16 +1136,18 @@ hr {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .card-body {
   min-width: 0;
-  padding: 12px 16px 16px;
+  padding: 16px var(--card-pad) var(--card-pad);
 }
 
 .card > .card-body:first-child {
-  padding-top: 16px;
+  padding-top: var(--card-pad);
 }
 
 .card-flush > .card-head {
@@ -1522,24 +1622,32 @@ hr {
 }
 
 .field-label {
-  color: var(--ink-2);
+  color: var(--ink);
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.35;
 }
 
 .field-req {
-  color: var(--loss);
+  color: var(--ink-3);
+}
+
+.field-optional {
+  color: var(--ink-3);
+  font-weight: 400;
 }
 
 .field-hint {
-  color: var(--ink-3);
-  font-size: 12.5px;
+  margin-top: -2px;
+  color: var(--ink-2);
+  font-size: 13px;
   line-height: 1.4;
 }
 
 .field-error {
+  margin-top: -2px;
   color: var(--loss);
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
 }
@@ -1549,11 +1657,13 @@ hr {
 .textarea {
   display: block;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
+  height: var(--ctl-h);
   min-height: var(--ctl-h);
   margin: 0;
   padding: 0 12px;
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--field-border);
   border-radius: var(--r-ctl);
   background: var(--surface);
   color: var(--ink);
@@ -1565,7 +1675,8 @@ hr {
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-@media (min-width: 900px) {
+/* Desktop text only with a mouse: a touch screen under 16px makes iOS zoom into the field. */
+@media (min-width: 900px) and (pointer: fine) {
   .input,
   .select,
   .textarea {
@@ -1573,7 +1684,14 @@ hr {
   }
 }
 
+.input[type="file"],
+.input[type="range"],
+.input[type="color"] {
+  height: auto;
+}
+
 .textarea {
+  height: auto;
   min-height: 88px;
   padding: 10px 12px;
   line-height: 1.45;
@@ -1636,15 +1754,50 @@ hr {
   -webkit-appearance: none;
 }
 
-/* iOS centres date text and sizes the box to its content otherwise */
+/* Date and time fields: iOS WebKit otherwise keeps the control's intrinsic width (it ignores
+   width:100% and overlaps its neighbour), centres the value and grows the box by a couple of
+   pixels; Chromium adds 1px of inner padding. Same box as every other input. */
 .input[type="date"],
-.input[type="time"] {
-  line-height: calc(var(--ctl-h) - 2px);
+.input[type="time"],
+.input[type="datetime-local"],
+.input[type="month"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: var(--ctl-h);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: normal;
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.input::-webkit-datetime-edit,
+.input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
 }
 
 .input::-webkit-date-and-time-value {
   min-height: 1.3em;
+  margin: 0;
   text-align: left;
+}
+
+.input::-webkit-calendar-picker-indicator {
+  margin-left: 4px;
+  opacity: 0.55;
+}
+
+/* An empty date reads as empty, not as a filled "dd/mm/yyyy". */
+.input.is-empty:not(:focus) {
+  color: var(--ink-3);
+}
+
+/* Fields with a <datalist>: no browser ▼ on top of the text. */
+.input[list]::-webkit-calendar-picker-indicator {
+  display: none !important;
 }
 
 .input-group {
@@ -1652,8 +1805,9 @@ hr {
   align-items: stretch;
   width: 100%;
   min-width: 0;
+  height: var(--ctl-h);
   overflow: hidden;
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--field-border);
   border-radius: var(--r-ctl);
   background: var(--surface);
   transition: border-color 0.12s, box-shadow 0.12s;
@@ -1674,7 +1828,9 @@ hr {
 
 .input-group .input {
   flex: 1 1 auto;
-  min-height: calc(var(--ctl-h) - 2px);
+  width: auto;
+  height: auto;
+  min-height: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1685,28 +1841,46 @@ hr {
   background: var(--surface-2);
 }
 
+/* Units sit inside the field as quiet text (£ 450.00, 45 mpg), never on top of the value. */
 .input-affix {
   display: flex;
   flex: none;
   align-items: center;
-  padding: 0 10px;
-  background: var(--surface-2);
-  color: var(--ink-3);
-  font-size: 14px;
+  max-width: 45%;
+  padding: 0 0 0 12px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: inherit;
   white-space: nowrap;
+  pointer-events: none;
 }
 
-.input-affix:first-child {
-  border-right: 1px solid var(--line);
+.input-group {
+  font-size: 16px;
+}
+
+@media (min-width: 900px) and (pointer: fine) {
+  .input-group {
+    font-size: 14px;
+  }
 }
 
 .input-affix:last-child {
-  border-left: 1px solid var(--line);
+  padding: 0 12px 0 0;
+}
+
+.input-group > .input-affix:first-child + .input {
+  padding-left: 6px;
+}
+
+.input-group > .input:not(:last-child) {
+  padding-right: 6px;
 }
 
 .input-affix:has(.btn) {
-  padding: 0 2px;
+  padding: 0 3px;
   background: transparent;
+  pointer-events: auto;
 }
 
 .input-affix .btn {
@@ -1801,8 +1975,9 @@ hr {
 }
 
 .switch-hint {
-  color: var(--ink-3);
-  font-size: 12.5px;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .search {
@@ -1965,7 +2140,13 @@ hr {
 .segmented-option[aria-checked="true"] {
   background: var(--seg-on);
   color: var(--ink);
-  box-shadow: 0 1px 2px rgba(27, 32, 40, 0.12), 0 0 0 1px var(--line);
+  box-shadow: 0 1px 3px rgba(27, 32, 40, 0.16), 0 0 0 1px var(--line-2);
+}
+
+@media (pointer: coarse) {
+  .segmented:not(.segmented-sm) .segmented-option {
+    min-height: 40px;
+  }
 }
 
 .segmented-option:disabled {
@@ -2050,7 +2231,12 @@ hr {
   font-weight: 600;
 }
 
-/* Phones: each row becomes a card; td[data-label] supplies the field name. */
+/* Phones: each row becomes a compact two-line row.
+     line 1  the headline cell (td.cell-primary)            the key figure, right-aligned
+     line 2  every other cell as quiet "Label value" pairs that wrap
+   The key figure is td.cell-key, or else the first td.num, with its label underneath.
+   td.cell-low (or .hide-phone) drops a low-value column on phones; td.cell-actions takes a
+   full-width line of its own. */
 @media (max-width: 639.98px) {
   .table-wrap {
     overflow: visible;
@@ -2058,9 +2244,7 @@ hr {
 
   .table,
   .table tbody,
-  .table tfoot,
-  .table tr,
-  .table td {
+  .table tfoot {
     display: block;
     width: 100%;
   }
@@ -2076,8 +2260,21 @@ hr {
   }
 
   .table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 14px;
+    width: 100%;
     padding: 12px 16px;
     border-bottom: 1px solid var(--line);
+  }
+
+  /* forces the meta cells onto line 2 */
+  .table tr::after {
+    content: "";
+    order: 2;
+    flex: 0 0 100%;
+    height: 0;
   }
 
   .table tbody tr:last-child {
@@ -2095,33 +2292,24 @@ hr {
   .table th:last-child,
   .table td:last-child,
   .table tfoot td {
-    position: relative;
-    min-height: 28px;
-    padding: 3px 0 3px 42%;
+    display: block;
+    order: 3;
+    flex: 0 1 auto;
+    width: auto;
+    max-width: 100%;
+    min-width: 0;
+    padding: 0;
     border: 0;
-    text-align: right;
+    color: var(--ink-2);
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: left;
   }
 
   .table td::before {
-    content: attr(data-label);
-    position: absolute;
-    top: 3px;
-    left: 0;
-    width: 40%;
-    overflow: hidden;
+    content: attr(data-label) "\00a0\00a0";
     color: var(--ink-3);
-    font-size: 13px;
     font-weight: 400;
-    text-align: left;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .table td:not([data-label]),
-  .table td[data-label=""],
-  .table td.cell-primary,
-  .table td.cell-actions {
-    padding-left: 0;
   }
 
   .table td:not([data-label])::before,
@@ -2131,26 +2319,68 @@ hr {
     content: none;
   }
 
-  .table td:not([data-label]),
-  .table td[data-label=""],
   .table td.cell-primary {
-    text-align: left;
+    order: 0;
+    flex: 1 1 0;
+    min-width: 0;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
   }
 
-  .table td.cell-primary {
-    padding-bottom: 6px;
+  /* the key figure: line 1, right */
+  .table td.cell-key,
+  .table tr:not(:has(> td.cell-key)) > td:nth-child(1 of .num:not(.cell-low):not(.hide-phone)) {
+    order: 1;
+    flex: none;
+    max-width: 50%;
+    margin-left: auto;
+    color: var(--ink);
     font-size: 15px;
     font-weight: 600;
+    line-height: 1.35;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .table td.cell-key::before,
+  .table tr:not(:has(> td.cell-key)) > td:nth-child(1 of .num:not(.cell-low):not(.hide-phone))::before {
+    content: none;
+  }
+
+  .table td.cell-key[data-label]:not([data-label=""])::after,
+  .table tr:not(:has(> td.cell-key)) > td:nth-child(1 of .num:not(.cell-low):not(.hide-phone))[data-label]:not([data-label=""])::after {
+    content: attr(data-label);
+    display: block;
+    color: var(--ink-3);
+    font-size: 12px;
+    font-weight: 400;
+  }
+
+  /* an inline editor or note spanning the row */
+  .table td[colspan] {
+    flex: 1 0 100%;
+    color: var(--ink);
+    font-size: inherit;
   }
 
   .table td.cell-actions {
-    width: 100%;
+    order: 4;
+    flex: 1 0 100%;
     padding-top: 8px;
     white-space: normal;
   }
 
+  .table td.cell-low,
+  .table td.hide-phone,
   .table td:empty {
     display: none;
+  }
+
+  .table td .badge {
+    vertical-align: baseline;
   }
 
   .table tr.is-clickable:hover td {
@@ -2292,6 +2522,14 @@ button.list-item:hover {
   justify-content: center;
 }
 
+/* iOS keeps 100dvh and the layout viewport when the keyboard opens; ui.js publishes the
+   visible area (--vvh, --vvt) so a sheet sits above the keyboard with its footer reachable. */
+html.is-keyboard .modal-root {
+  top: var(--vvt, 0px);
+  bottom: auto;
+  height: var(--vvh, 100%);
+}
+
 .modal-backdrop {
   position: absolute;
   inset: 0;
@@ -2305,7 +2543,7 @@ button.list-item:hover {
   flex-direction: column;
   width: 100%;
   max-height: calc(100vh - 24px);
-  max-height: calc(100dvh - var(--safe-t) - 16px);
+  max-height: calc(var(--vvh, 100dvh) - var(--safe-t) - 16px);
   padding-bottom: var(--safe-b);
   border-radius: 14px 14px 0 0;
   background: var(--surface);
@@ -2336,7 +2574,11 @@ button.list-item:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 12px 6px 16px;
+  padding: 20px 12px 8px 16px;
+}
+
+html.is-keyboard .modal {
+  padding-bottom: 0;
 }
 
 .modal-title {
@@ -2352,9 +2594,11 @@ button.list-item:hover {
 .modal-body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 8px 16px 16px;
+  padding: 8px 16px 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding: 12px 0;
 }
 
 .modal-foot {
@@ -2365,6 +2609,7 @@ button.list-item:hover {
   gap: 8px;
   padding: 12px 16px;
   border-top: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .confirm-body {
@@ -2398,7 +2643,15 @@ button.list-item:hover {
   }
 
   .modal-head {
-    padding-top: 16px;
+    padding: 18px 16px 8px 20px;
+  }
+
+  .modal-body {
+    padding: 8px 20px 20px;
+  }
+
+  .modal-foot {
+    padding: 14px 20px;
   }
 
   .modal-sm { width: min(420px, 100%); }
@@ -2412,7 +2665,7 @@ button.list-item:hover {
   z-index: 1100;
   left: 0;
   right: 0;
-  bottom: calc(var(--tabbar-h) + var(--safe-b) + 12px);
+  bottom: calc(var(--tabbar-h) + var(--safe-b) + var(--formbar-h, 0px) + 12px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2531,6 +2784,157 @@ button.list-item:hover {
   .leaflet-bar a {
     border-bottom-color: var(--line);
   }
+}
+
+/* ---- typing on a phone, sticky bars, form sections ---------------------------------------- */
+
+/* ui.js sets html.is-typing while a text control has focus. The tab bar steps aside (as iOS
+   apps do), so it can't float over the keyboard, cover a suggestion list or a sticky bar; and
+   anything offset by --tabbar-h (save bars, toasts) drops to the bottom edge. */
+html.is-typing {
+  --tabbar-h: 0px;
+}
+
+@media (max-width: 899.98px) {
+  html.is-typing .tabbar {
+    display: none;
+  }
+}
+
+/* A sticky save bar for page forms: <div class="form-bar">summary … <button></div>.
+   It sits above the tab bar (on the bottom edge while typing). */
+.form-bar {
+  position: sticky;
+  z-index: 40;
+  bottom: calc(var(--tabbar-h) + var(--safe-b) + 8px);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--glass-surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.form-bar > .form-bar-summary {
+  flex: 1 1 10rem;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .form-bar {
+    bottom: 16px;
+  }
+}
+
+/* A titled group of fields inside a card: 24px between groups, 16px between fields. */
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+  min-width: 0;
+}
+
+.form-section + .form-section {
+  margin-top: var(--section-gap);
+  padding-top: var(--section-gap);
+  border-top: 1px solid var(--line);
+}
+
+.form-section-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.form-section-sub {
+  margin-top: -10px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+/* Form footer: [Delete] … [Cancel] [Save], right-aligned, stacking full width on phones. */
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.form-actions > .form-actions-start {
+  margin-right: auto;
+}
+
+@media (max-width: 519.98px) {
+  .form-actions > .btn {
+    flex: 1 1 auto;
+  }
+}
+
+/* Repeating sub-blocks (an item, an address, a cost) get a quiet panel and room inside. */
+.repeat-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--field-gap);
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-panel);
+  background: var(--surface-2);
+}
+
+.repeat-block .input,
+.repeat-block .select,
+.repeat-block .textarea,
+.repeat-block .input-group {
+  background-color: var(--surface);
+}
+
+.repeat-block .input-group .input {
+  background: transparent;
+}
+
+/* Small inline links get a usable hit area. */
+.link {
+  position: relative;
+}
+
+@media (pointer: coarse) {
+  .link::after {
+    content: "";
+    position: absolute;
+    inset: -8px -4px;
+  }
+
+  .page-back {
+    min-height: 36px;
+  }
+
+  .chip {
+    min-height: 36px;
+  }
+}
+
+/* Chips and tag lists wrap instead of pushing the page sideways. */
+.chips,
+.chips > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Rows of inline buttons under a form wrap cleanly. */
+.row > .btn {
+  max-width: 100%;
 }
 
 /* ---- motion -------------------------------------------------------------------------------- */

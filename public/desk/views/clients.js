@@ -7,7 +7,7 @@
 // the "club · position · #7" line, sizes, per-client sales stats (from calc.js), the initials
 // avatar and tag pills, plus the few styles both screens need that desk.css has no class for.
 
-import { html, useMemo } from '../lib/preact.js';
+import { html, useEffect, useMemo, useState } from '../lib/preact.js';
 import {
   Badge,
   Banner,
@@ -35,13 +35,45 @@ const CSS = `
 .cl-avatar { display: inline-grid; flex: none; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: var(--signal-tint); color: var(--signal); font-size: 13px; font-weight: 600; letter-spacing: 0.02em; line-height: 1; user-select: none; }
 .cl-avatar-lg { width: 56px; height: 56px; font-size: 19px; }
 .cl-who { flex: 1 1 auto; min-width: 0; }
+.cl-who-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cl-sub { font-weight: 400; }
 .cl-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 .cl-tags .pill { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .cl-table td.cell-primary { min-width: 220px; }
+.cl-cell-client { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
+.cl-toolbar { flex-wrap: nowrap; }
+.cl-toolbar > .search { flex: 1 1 auto; min-width: 0; }
+.cl-toolbar > .select-wrap { flex: 0 1 180px; min-width: 0; }
+.cl-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px; padding: 2px 16px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.cl-chips::-webkit-scrollbar { display: none; }
+.cl-chips .chip { flex: none; }
+@media (min-width: 640px) {
+  .cl-chips { flex-wrap: wrap; overflow: visible; margin: 0; padding: 0; }
+}
 @media (max-width: 639.98px) {
   .cl-table td.cell-primary { min-width: 0; }
+  .cl-toolbar > .select-wrap { flex-basis: 132px; max-width: 42%; }
 }
+
+/* Compact two-line list rows for phones (shared by Clients, Client, Stock, Trips): title and
+   a muted line on the left, the key number and a short meta line on the right. */
+.lr-list { margin: 0; padding: 0; list-style: none; }
+.lr-list > li + li { border-top: 1px solid var(--line); }
+.lr { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin: 0; padding: 11px 16px; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; text-align: left; text-decoration: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.lr:hover, .lr:active { background: var(--hover); text-decoration: none; }
+.lr:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
+.lr-main { flex: 1 1 auto; min-width: 0; }
+.lr-title { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--ink); font-size: 15px; font-weight: 500; line-height: 1.3; }
+.lr-title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lr-title > :not(.lr-title-text) { flex: none; }
+.lr-sub { margin-top: 3px; overflow: hidden; color: var(--ink-2); font-size: 13px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.lr-aside { display: flex; flex: none; flex-direction: column; align-items: flex-end; gap: 3px; max-width: 46%; text-align: right; }
+.lr-amount { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.3; white-space: nowrap; }
+.lr-meta { max-width: 100%; overflow: hidden; color: var(--ink-3); font-size: 12px; font-weight: 500; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.lr-meta.tone-warn { color: var(--warn); }
+.lr-meta.tone-loss { color: var(--loss); }
+.lr-meta.tone-gain { color: var(--gain); }
+.lr.is-current { background: var(--signal-tint); }
 `;
 
 const STYLE_ID = 'desk-clients-styles';
@@ -185,6 +217,42 @@ export function TagPills({ tags, limit }) {
   </div>`;
 }
 
+/** True while the viewport is phone-width (< 640px); follows rotation and resizes. */
+export const PHONE_QUERY = '(max-width: 639.98px)';
+export function usePhone(query = PHONE_QUERY) {
+  const list = typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(query) : null;
+  const [matches, setMatches] = useState(() => Boolean(list?.matches));
+  useEffect(() => {
+    if (!list) return undefined;
+    const onChange = (event) => setMatches(event.matches);
+    list.addEventListener?.('change', onChange);
+    setMatches(list.matches);
+    return () => list.removeEventListener?.('change', onChange);
+  }, [query]);
+  return matches;
+}
+
+/**
+ * One compact list row (64px): optional leading avatar/icon, a one-line title (plus a small
+ * badge), a one-line muted subtitle, and on the right the key number over a short meta line.
+ * The whole row is the link (`href`) or button (`onClick`). Render inside <ul class="lr-list">.
+ */
+export function ListRow({ href, onClick, leading, title, badge, subtitle, amount, meta, metaTone, current, label }) {
+  const body = html`
+    ${leading}
+    <div class="lr-main">
+      <div class="lr-title"><span class="lr-title-text">${title}</span>${badge}</div>
+      ${subtitle && html`<div class="lr-sub">${subtitle}</div>`}
+    </div>
+    ${(amount || meta) && html`<div class="lr-aside">
+      ${amount && html`<div class="lr-amount">${amount}</div>`}
+      ${meta && html`<div class=${cx('lr-meta', metaTone && `tone-${metaTone}`)}>${meta}</div>`}
+    </div>`}`;
+  return html`<li>${href
+    ? html`<a class=${cx('lr', current && 'is-current')} href=${href} aria-label=${label}>${body}</a>`
+    : html`<button type="button" class=${cx('lr', current && 'is-current')} onClick=${onClick} aria-label=${label}>${body}</button>`}</li>`;
+}
+
 // ---------------------------------------------------------------------------------------------
 // List
 // ---------------------------------------------------------------------------------------------
@@ -257,10 +325,10 @@ function ClientRow({ row, navigate }) {
   const hasSales = stats.count > 0;
   return html`<tr class="is-clickable" onClick=${() => navigate(href)}>
     <td class="cell-primary">
-      <div class="row row-nowrap" style="gap:10px;align-items:flex-start">
+      <div class="cl-cell-client">
         <${Avatar} name=${client.name} />
         <div class="cl-who">
-          <div class="row row-nowrap" style="gap:6px">
+          <div class="cl-who-name">
             <a href=${href} class="strong truncate" onClick=${stopPropagation}>${client.name}</a>
             ${client.archived && html`<${Badge} tone="muted" dot=${false}>Archived<//>`}
           </div>
@@ -288,8 +356,30 @@ function ClientRow({ row, navigate }) {
   </tr>`;
 }
 
+// Phones: name and club on the left, lifetime profit and what they owe (or their last sale)
+// on the right.
+function ClientListRow({ row }) {
+  const { client, stats } = row;
+  const hasSales = stats.count > 0;
+  const owes = stats.owed > EPS;
+  let meta = 'No sales yet';
+  if (owes) meta = `${money(stats.owed, { pence: false })} owed`;
+  else if (stats.lastSale) meta = `Last sale ${saleDateText(stats.lastSale)}`;
+  return html`<${ListRow}
+    href=${`#/clients/${client.id}`}
+    leading=${html`<${Avatar} name=${client.name} />`}
+    title=${client.name}
+    badge=${client.archived && html`<${Badge} tone="muted" dot=${false}>Archived<//>`}
+    subtitle=${clientLine(client) || sizesLine(client) || 'No club saved'}
+    amount=${hasSales ? html`<${Money} value=${stats.netProfit} tone="auto" />${stats.estimatedCount > 0 ? html`<span class="tone-warn small"> est.</span>` : ''}` : null}
+    meta=${meta}
+    metaTone=${owes ? 'warn' : undefined}
+  />`;
+}
+
 export default function ClientsView({ store, params, navigate }) {
   const { data, error, loading, reload } = useStoreData(store, loadClients);
+  const phone = usePhone();
   const tab = TAB_IDS.has(params.tab) ? params.tab : 'active';
   const q = typeof params.q === 'string' ? params.q : '';
   const sort = SORTS.some((option) => option.value === params.sort) ? params.sort : 'name';
@@ -384,11 +474,11 @@ export default function ClientsView({ store, params, navigate }) {
       ${error.message}
     <//>`}
     <${Tabs} tabs=${tabs} value=${tab} onChange=${(id) => setView({ tab: id })} label="Filter clients" />
-    <div class="toolbar">
+    <div class="toolbar cl-toolbar">
       <${SearchBox}
         value=${q}
         onInput=${(text) => setView({ q: text })}
-        placeholder="Search name, club or tag"
+        placeholder="Search clients"
         label="Search clients"
       />
       <${Select}
@@ -398,7 +488,7 @@ export default function ClientsView({ store, params, navigate }) {
         onChange=${(event) => setView({ sort: event.currentTarget.value })}
       />
     </div>
-    ${tags.length > 0 && html`<div class="chips" role="group" aria-label="Filter by tag">
+    ${tags.length > 0 && html`<div class="chips cl-chips" role="group" aria-label="Filter by tag">
       ${tags.map((name) => html`<button
         key=${name}
         type="button"
@@ -410,7 +500,9 @@ export default function ClientsView({ store, params, navigate }) {
     <${Card} pad=${false} title=${plural(shown.length, 'client')} subtitle=${shown.length > 0 ? cardSubtitle : null}>
       ${shown.length === 0
         ? html`<${Empty} icon="search" title=${emptyTitle} body=${emptyBody} action=${clearFilters} />`
-        : html`<div class="table-wrap">
+        : phone
+          ? html`<ul class="lr-list">${shown.map((row) => html`<${ClientListRow} key=${row.client.id} row=${row} />`)}</ul>`
+          : html`<div class="table-wrap">
             <table class="table cl-table">
               <thead>
                 <tr>
