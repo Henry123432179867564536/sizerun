@@ -201,7 +201,7 @@ function visibleBand() {
  * With `label` it renders its own field; without one it can sit inside a ui.js Field.
  * `locate`: true (default, "Use my location"), a string for field-specific wording, or false.
  */
-export default function AddressInput({ store, value, onChange, placeholder = 'Address or postcode', label, autoFocus = false, locate: locateOption = true }) {
+export default function AddressInput({ store, value, onChange, placeholder = 'Address or postcode', label, autoFocus = false, locate: locateOption = true, needsPin = true }) {
   const valueText = placeText(value);
   const [text, setText] = useState(valueText);
   const [results, setResults] = useState([]);
@@ -508,7 +508,8 @@ export default function AddressInput({ store, value, onChange, placeholder = 'Ad
     status = html`<span class="addr-state is-problem" role="status"><${Icon} name="alert" size=${14} />${note}</span>`;
   } else if (!edited && located) {
     status = html`<span class="addr-state is-pinned"><${Icon} name="map-pin" size=${14} />On the map</span>`;
-  } else if (!edited && valueText) {
+  } else if (!edited && valueText && needsPin) {
+    // Only worth warning about when the place feeds a route lookup.
     status = html`<span class="addr-state is-loose"><${Icon} name="alert" size=${14} />Not on the map — pick a suggestion or use a postcode</span>`;
   }
   const showLocate = canLocate && !query && busy !== 'locate';
