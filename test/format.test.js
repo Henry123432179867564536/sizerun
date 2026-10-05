@@ -367,3 +367,11 @@ describe('plural', () => {
     assert.equal(plural(-2, 'item'), '−2 items');
   });
 });
+
+test('payToDeliverText', async () => {
+  const { payToDeliverText } = await import('../public/desk/lib/format.js');
+  assert.equal(payToDeliverText(3), 'delivered 3 days after payment');
+  assert.equal(payToDeliverText(-1), 'paid 1 day after delivery');
+  assert.equal(payToDeliverText(0.2), 'paid on delivery day');
+  assert.equal(payToDeliverText(null), null);
+});

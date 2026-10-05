@@ -455,3 +455,45 @@ export function dealNumber(n) {
   const value = Math.trunc(num(n));
   return value > 0 ? `SM-${String(value).padStart(4, '0')}` : '';
 }
+
+// ---- pay → deliver timing -------------------------------------------------------------------
+
+function isoDay(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ''));
+  return m ? Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86_400_000 : null;
+}
+
+/**
+ * The date a deal was paid in full: the payment that brought the running total up to the sale
+ * price (payments taken in date order). null when it isn't fully paid or has no sale price.
+ */
+export function paidInFullDate(deal) {
+  const revenue = (deal?.items ?? []).reduce((sum, item) => sum + num(item.qty) * num(item.unit_price), 0);
+  if (revenue <= EPS) return null;
+  const payments = [...(deal?.payments ?? [])].sort((a, b) => String(a.paid_at ?? '').localeCompare(String(b.paid_at ?? '')));
+  let paid = 0;
+  for (const payment of payments) {
+    paid += num(payment.amount);
+    if (paid >= revenue - EPS) return payment.paid_at ?? null;
+  }
+  return null;
+}
+
+/**
+ * Days from being paid in full to the delivery date (deals.due_date, "Deliver by"): positive =
+ * delivered that many days after payment, negative = paid that many days after delivery.
+ * null for cancelled deals, or when either date is missing.
+ */
+export function payToDeliverDays(deal) {
+  if (!deal || deal.status === 'cancelled') return null;
+  const paid = isoDay(paidInFullDate(deal));
+  const delivered = isoDay(deal.due_date);
+  return paid === null || delivered === null ? null : delivered - paid;
+}
+
+/** Average payToDeliverDays over deals that have one: { days, count } or null. */
+export function averagePayToDeliver(deals) {
+  const values = (deals ?? []).map(payToDeliverDays).filter((d) => d !== null);
+  if (!values.length) return null;
+  return { days: values.reduce((a, b) => a + b, 0) / values.length, count: values.length };
+}

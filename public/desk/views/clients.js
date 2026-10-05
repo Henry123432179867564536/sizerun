@@ -24,7 +24,7 @@ import {
   cx,
   useStoreData,
 } from '../lib/ui.js';
-import { EPS, dealTotals, num, summarise } from '../lib/calc.js';
+import { averagePayToDeliver, dealTotals, EPS, num, summarise } from '../lib/calc.js';
 import { date as formatDate, dateShort, money, plural, relDays, todayISO } from '../lib/format.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -170,6 +170,7 @@ export function clientStats(deals) {
     ...summary,
     owed: summarise(list.filter((deal) => deal.status !== 'enquiry')).owed,
     margin: summary.revenue > 0 ? summary.netProfit / summary.revenue : null,
+    payToDeliver: averagePayToDeliver(list),
     lastSale: null,
     open: 0,
     cancelled: 0,

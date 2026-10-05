@@ -32,7 +32,7 @@ import {
   useStoreData,
 } from '../lib/ui.js';
 import { EPS, dealNumber, num, stockLevels } from '../lib/calc.js';
-import { date as formatDate, money, plural, todayISO } from '../lib/format.js';
+import { CONDITIONS, conditionLabel, date as formatDate, money, plural, todayISO } from '../lib/format.js';
 import { ListRow, usePhone } from './clients.js';
 
 const MAX_NAME = 120;
@@ -44,10 +44,6 @@ const ISO_DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 // Sales not yet handed over: stock allocated to them is still physically with you.
 const OPEN_STATUSES = new Set(['enquiry', 'agreed', 'sourcing', 'ready']);
 
-const CONDITIONS = [
-  { value: 'new', label: 'New' },
-  { value: 'used', label: 'Used' },
-];
 
 const CSS = `
 .st-table td.cell-primary { min-width: 200px; }
@@ -205,7 +201,7 @@ function buildRows({ stock, deals }) {
       sortName: normaliseText(item.name),
       haystack: normaliseText([
         item.name, item.brand, item.sku, item.size, item.supplier, item.location, item.notes,
-        item.condition === 'used' ? 'used' : 'new',
+        conditionLabel(item.condition),
       ].filter(Boolean).join(' ')),
     };
   });
@@ -221,7 +217,7 @@ function formFromItem(item) {
     brand: item?.brand ?? '',
     sku: item?.sku ?? '',
     size: item?.size ?? '',
-    condition: item?.condition === 'used' ? 'used' : 'new',
+    condition: CONDITIONS.some((c) => c.value === item?.condition) ? item.condition : 'new',
     qty: item ? String(item.qty ?? 0) : '1',
     unit_cost: amountText(item?.unit_cost),
     bought_at: item ? item.bought_at ?? '' : todayISO(),
@@ -433,7 +429,7 @@ function StockRow({ row, busy, onEdit, onDelete }) {
   // Nothing allocated: Qty and Allocated only repeat On hand.
   const same = level.allocated === 0;
   const sku = clean(item.sku);
-  const details = [clean(item.brand), sku && html`<span class="mono">${sku}</span>`, item.condition === 'used' ? 'Used' : 'New']
+  const details = [clean(item.brand), sku && html`<span class="mono">${sku}</span>`, conditionLabel(item.condition) ?? 'New']
     .filter(Boolean)
     .flatMap((part, index) => (index ? [' · ', part] : [part]));
   return html`<tr class="is-clickable" onClick=${() => onEdit(row)}>
@@ -477,7 +473,7 @@ function StockRow({ row, busy, onEdit, onDelete }) {
 function StockListRow({ row, onEdit }) {
   const { item, level, age, aged } = row;
   const oversold = level.onHand < 0;
-  const sub = [clean(item.size), clean(item.brand), item.condition === 'used' && 'Used', age !== null && ageText(age)].filter(Boolean).join(' · ');
+  const sub = [clean(item.size), clean(item.brand), item.condition && item.condition !== 'new' && conditionLabel(item.condition), age !== null && ageText(age)].filter(Boolean).join(' · ');
   let meta = `${level.onHand} on hand`;
   if (level.allocated > 0) meta += ` · ${level.allocated} on sales`;
   if (oversold) meta = `Oversold by ${-level.onHand}`;

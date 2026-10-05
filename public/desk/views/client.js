@@ -33,7 +33,7 @@ import {
   useStoreData,
 } from '../lib/ui.js';
 import { EPS, dealNumber, dealTotals, tripTotals } from '../lib/calc.js';
-import { date as formatDate, duration, miles as formatMiles, money, pct, plural, relDays, todayISO } from '../lib/format.js';
+import { date as formatDate, duration, miles as formatMiles, money, pct, payToDeliverText, plural, relDays, todayISO } from '../lib/format.js';
 import AddressInput from '../components/address-input.js';
 import {
   Avatar,
@@ -907,15 +907,14 @@ function estValue(amount, estimated) {
 
 // What the client is worth: lifetime profit up front, then orders, profit per order, revenue
 // and what they owe. An order is one sale, which may hold several items.
-function ProfileStats({ stats, target }) {
+function ProfileStats({ stats }) {
   const hasSales = stats.count > 0;
   const estimated = stats.estimatedCount > 0;
   const pending = Math.abs(stats.pendingProfit) > EPS;
-  const belowTarget = stats.margin !== null && target > 0 && stats.margin < target;
   let profitSub = 'No orders yet';
   if (hasSales) {
     profitSub = [
-      stats.margin !== null && `${pct(stats.margin)} margin${belowTarget ? ` (target ${pct(target)})` : ''}`,
+      stats.margin !== null && `${pct(stats.margin)} margin`,
       pending && `${money(stats.pendingProfit)} pending`,
     ].filter(Boolean).join(' · ') || 'All realised';
   }
@@ -944,6 +943,11 @@ function ProfileStats({ stats, target }) {
     />
     <${Stat} label="Lifetime revenue" value=${money(stats.revenue)} sub=${hasSales ? 'Excluding cancelled' : '—'} />
     <${Stat} label="Owed" value=${money(stats.owed)} tone=${stats.owed > EPS ? 'warn' : undefined} sub=${owedSub} />
+    <${Stat}
+      label="Pay → deliver"
+      value=${stats.payToDeliver ? `${Math.abs(Math.round(stats.payToDeliver.days))} day${Math.abs(Math.round(stats.payToDeliver.days)) === 1 ? '' : 's'}` : '—'}
+      sub=${stats.payToDeliver ? `avg: ${payToDeliverText(stats.payToDeliver.days)} (${plural(stats.payToDeliver.count, 'order')})` : 'Needs a deliver-by date and full payment'}
+    />
   </div>`;
 }
 
@@ -1359,7 +1363,7 @@ function ClientProfile({ store, id, params, navigate }) {
       title="Archived"
       actions=${html`<${Button} size="sm" loading=${busy === 'archive'} onClick=${toggleArchived}>Unarchive<//>`}
     >Hidden from your client list. Their sales still count in every total.<//>`}
-    <${ProfileStats} stats=${stats} target=${Number(settings?.target_margin) || 0} />
+    <${ProfileStats} stats=${stats} />
     <${ProfileHero} client=${client} onEdit=${startEdit} />
     <div class="cl-layout">
       <div class="cl-main stack">

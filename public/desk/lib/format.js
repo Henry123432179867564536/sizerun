@@ -212,3 +212,26 @@ export function plural(n, word, pluralWord = `${word}s`) {
   const sign = value < 0 && text !== '0' ? MINUS : '';
   return `${sign}${text} ${text === '1' ? word : pluralWord}`;
 }
+
+/** Item condition, shared by sale lines and stock. */
+export const CONDITIONS = [
+  { value: 'new', label: 'New' },
+  { value: 'vnds', label: 'VNDS' },
+  { value: 'good', label: 'Good' },
+  { value: 'worn', label: 'Worn out' },
+];
+export function conditionLabel(value) {
+  return CONDITIONS.find((c) => c.value === value)?.label ?? null;
+}
+
+/**
+ * Pay → deliver days as words: 3 → 'delivered 3 days after payment', -2 → 'paid 2 days after
+ * delivery', 0 → 'paid on delivery day'. Averages are rounded to a whole day.
+ */
+export function payToDeliverText(days) {
+  if (days === null || days === undefined || !Number.isFinite(Number(days))) return null;
+  const n = Math.round(Number(days));
+  if (n === 0) return 'paid on delivery day';
+  const span = `${Math.abs(n)} day${Math.abs(n) === 1 ? '' : 's'}`;
+  return n > 0 ? `delivered ${span} after payment` : `paid ${span} after delivery`;
+}

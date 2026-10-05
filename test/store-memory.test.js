@@ -364,10 +364,10 @@ describe('memory store: stock', () => {
       'bought_at desc, NULLs last',
     );
 
-    const updated = await store.stock.update(newer.id, { qty: 1, condition: 'used' });
+    const updated = await store.stock.update(newer.id, { qty: 1, condition: 'vnds' });
     assert.equal(updated.qty, 1);
-    assert.equal(updated.condition, 'used');
-    await rejectsWith(store.stock.update(newer.id, { condition: 'mint' }), "Condition must be 'new' or 'used'.");
+    assert.equal(updated.condition, 'vnds');
+    await rejectsWith(store.stock.update(newer.id, { condition: 'mint' }), 'Pick a condition: New, VNDS, Good or Worn out.');
     await rejectsWith(store.stock.update(newer.id, { qty: -1 }), "Quantity can't be negative.");
     await rejectsWith(store.stock.create({ name: 'No price' }), 'Cost is required.');
 

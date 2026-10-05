@@ -218,7 +218,7 @@ const SCHEMA = {
     },
     checks: [
       rule('stock_items_name_not_blank', notBlank('name'), 'Item name is required.'),
-      rule('stock_items_condition_valid', oneOf('condition', ['new', 'used']), "Condition must be 'new' or 'used'."),
+      rule('stock_items_condition_valid', oneOf('condition', ['new', 'vnds', 'good', 'worn']), 'Pick a condition: New, VNDS, Good or Worn out.'),
       rule('stock_items_qty_nonneg', nonNegative('qty'), "Quantity can't be negative."),
       rule('stock_items_unit_cost_nonneg', nonNegative('unit_cost'), "Cost can't be negative."),
     ],
@@ -267,6 +267,7 @@ const SCHEMA = {
       cost_status: text({ notNull: true, default: 'expected' }),
       expected_unit_cost: numeric(12, 2, { label: 'Expected cost' }),
       unit_cost: numeric(12, 2, { label: 'Cost' }),
+      condition: text({ label: 'Condition' }),
       stock_item_id: ref('stock_items', 'set null', { label: 'Stock item' }),
       supplier: text(),
       sourced_at: date({ label: 'Bought date' }),
@@ -274,6 +275,7 @@ const SCHEMA = {
     checks: [
       rule('deal_items_description_not_blank', notBlank('description'), 'Item description is required.'),
       rule('deal_items_qty_positive', positive('qty'), 'Quantity must be at least 1.'),
+      rule('deal_items_condition_valid', oneOf('condition', ['new', 'vnds', 'good', 'worn']), 'Pick a condition: New, VNDS, Good or Worn out.'),
       rule('deal_items_unit_price_nonneg', nonNegative('unit_price'), "Sale price can't be negative."),
       rule('deal_items_cost_status_valid', oneOf('cost_status', ['expected', 'actual']), "Cost status must be 'expected' or 'actual'."),
       rule('deal_items_expected_unit_cost_nonneg', nonNegative('expected_unit_cost'), "Expected cost can't be negative."),

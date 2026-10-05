@@ -1030,3 +1030,18 @@ describe('dealNumber', () => {
     for (const v of [null, undefined, '', 0, -3, 'abc', NaN]) assert.equal(dealNumber(v), '', String(v));
   });
 });
+
+test('pay → deliver timing', async () => {
+  const { paidInFullDate, payToDeliverDays, averagePayToDeliver } = await import('../public/desk/lib/calc.js');
+  const deal = (due, payments, extra = {}) => ({ due_date: due, items: [{ qty: 1, unit_price: 450 }], payments, ...extra });
+  const a = deal('2026-09-20', [{ amount: 200, paid_at: '2026-09-10' }, { amount: 250, paid_at: '2026-09-14' }]);
+  assert.equal(paidInFullDate(a), '2026-09-14');
+  assert.equal(payToDeliverDays(a), 6);
+  const b = deal('2026-09-20', [{ amount: 450, paid_at: '2026-09-23' }]);
+  assert.equal(payToDeliverDays(b), -3);
+  assert.equal(payToDeliverDays(deal('2026-09-20', [{ amount: 100, paid_at: '2026-09-10' }])), null); // part paid
+  assert.equal(payToDeliverDays(deal(null, [{ amount: 450, paid_at: '2026-09-10' }])), null); // no delivery date
+  assert.equal(payToDeliverDays(deal('2026-09-20', [{ amount: 450, paid_at: '2026-09-10' }], { status: 'cancelled' })), null);
+  assert.deepEqual(averagePayToDeliver([a, b, deal(null, [])]), { days: 1.5, count: 2 });
+  assert.equal(averagePayToDeliver([]), null);
+});

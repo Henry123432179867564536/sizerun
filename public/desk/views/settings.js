@@ -183,7 +183,6 @@ function formFromSettings(settings) {
     round_trip_default: s.round_trip_default !== false,
     handover_minutes_default: numberText(s.handover_minutes_default),
     // Stored as a fraction (0.25); people think in percent (25).
-    target_margin: numberText(Math.round(Number(s.target_margin) * 10_000) / 100),
   };
 }
 
@@ -220,10 +219,6 @@ function validate(form) {
   else if (handover !== null && (handover < 0 || !Number.isInteger(handover))) errors.handover_minutes_default = 'Use whole minutes, 0 or more.';
   else if (handover !== null && handover > MAX_HANDOVER_MINUTES) errors.handover_minutes_default = 'Keep it under a day (1,440 minutes).';
 
-  const margin = parseNumber(form.target_margin);
-  if (Number.isNaN(margin)) errors.target_margin = 'Use a whole percentage, e.g. 25.';
-  else if (margin !== null && (margin < 0 || margin >= 100)) errors.target_margin = 'Pick a target from 0% up to 99%.';
-  else if (margin !== null && !Number.isInteger(margin)) errors.target_margin = 'Use a whole percentage, e.g. 25.';
 
   return errors;
 }
@@ -247,7 +242,7 @@ function patchFromForm(form) {
     vehicle_cost_per_mile: parseNumber(form.vehicle_cost_per_mile) ?? 0,
     round_trip_default: form.round_trip_default,
     handover_minutes_default: parseNumber(form.handover_minutes_default) ?? 0,
-    target_margin: (parseNumber(form.target_margin) ?? 0) / 100,
+    target_margin: 0, // no margin target: every profitable deal counts
   };
 }
 
@@ -394,7 +389,6 @@ function ProfitExplainer({ form }) {
   const rate = usable(form.hourly_rate, DEFAULT_SETTINGS.hourly_rate, (n) => n >= 0 && n < MAX_HOURLY_RATE);
   const wear = usable(form.vehicle_cost_per_mile, DEFAULT_SETTINGS.vehicle_cost_per_mile, (n) => n >= 0 && n <= MAX_WEAR_PER_MILE);
   const handover = usable(form.handover_minutes_default, DEFAULT_SETTINGS.handover_minutes_default, (n) => n >= 0 && n <= MAX_HANDOVER_MINUTES);
-  const margin = usable(form.target_margin, DEFAULT_SETTINGS.target_margin * 100, (n) => n >= 0 && n < 100) / 100;
 
   const trip = {
     one_way_miles: EXAMPLE.oneWayMiles,
@@ -408,7 +402,7 @@ function ProfitExplainer({ form }) {
     other_costs: 0,
   };
   const drive = tripTotals(trip);
-  const deal = assessDeal({ salePrice: EXAMPLE.salePrice, buyPrice: EXAMPLE.buyPrice, trip, hourlyRate: rate, targetMargin: margin });
+  const deal = assessDeal({ salePrice: EXAMPLE.salePrice, buyPrice: EXAMPLE.buyPrice, trip, hourlyRate: rate });
   const legs = form.round_trip_default ? 'there and back' : 'one way';
 
   return html`<${Card} title="How profit is calculated" subtitle="The same sums run on every sale, drive and deal check.">
@@ -420,7 +414,7 @@ function ProfitExplainer({ form }) {
       <li><strong>Profit</strong> = revenue − goods − extras − travel.</li>
       <li><strong>After your time</strong> = profit − your hourly rate × the time the drive took, handover included.</li>
       <li><strong>£ per driving hour</strong> = profit ÷ the hours you spent behind the wheel.</li>
-      <li><strong>Margin</strong> = profit ÷ revenue. The deal checker calls a deal tight when it's under your target.</li>
+      <li><strong>Margin</strong> = profit ÷ revenue.</li>
       <li><strong>Realised or pending:</strong> a sale's profit is realised once it's delivered, paid in full and every cost is known. Until then it's pending. Cancelled sales are left out of every total.</li>
     </ul>
 
@@ -1092,13 +1086,10 @@ export default function SettingsView({ store, user, params }) {
         </div>
       <//>
 
-      <${Card} title="Your time and margin" subtitle="Used for “after your time” and by the deal checker.">
+      <${Card} title="Your time" subtitle="Used for “after your time” and by the deal checker.">
         <div class="form-grid">
           <${Field} label="Your hourly rate" required hint="What an hour of your time is worth." error=${errorFor('hourly_rate')}>
             <${Input} type="text" inputmode="decimal" prefix="£" suffix="/h" autocomplete="off" ...${textProps('hourly_rate')} />
-          <//>
-          <${Field} label="Target margin" hint="Profit as a share of the sale price. Deals under it are flagged as tight." error=${errorFor('target_margin')}>
-            <${Input} type="text" inputmode="numeric" suffix="%" autocomplete="off" placeholder="0" ...${textProps('target_margin')} />
           <//>
         </div>
       <//>
