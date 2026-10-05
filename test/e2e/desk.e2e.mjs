@@ -589,8 +589,10 @@ async function listsStep(page, pass, problems, firstProfit) {
   await page.locator(isPhone(page) ? 'ul.lr-list a' : 'tbody tr', { hasText: CLIENT.name }).first().click();
   await page.waitForFunction(() => /^#\/clients\/[0-9a-f-]{36}$/.test(window.location.hash));
   await waitForText(stat(page, 'Orders').value, '3', { what: 'orders' });
-  const lifetime = parseMoney(await waitForText(stat(page, 'Lifetime profit').value, /^−?£[\d,]+\.\d\d/, { what: 'lifetime profit' }));
-  const average = parseMoney(await waitForText(stat(page, 'Avg profit per order').value, /^−?£[\d,]+\.\d\d/, { what: 'avg profit per order' }));
+  // Values read like "£342.90 est." while some costs are still estimates.
+  const leadingMoney = (text) => parseMoney(text.match(/^−?£[\d,]+\.\d\d/)[0]);
+  const lifetime = leadingMoney(await waitForText(stat(page, 'Lifetime profit').value, /^−?£[\d,]+\.\d\d/, { what: 'lifetime profit' }));
+  const average = leadingMoney(await waitForText(stat(page, 'Avg profit per order').value, /^−?£[\d,]+\.\d\d/, { what: 'avg profit per order' }));
   check(Math.abs(average - lifetime / 3) <= 0.01, `avg per order ${average} should be lifetime ${lifetime} ÷ 3`);
   check(lifetime > firstProfit, `lifetime profit ${lifetime} should include the first sale's ${firstProfit} and more`);
   await waitForText(stat(page, 'Avg profit per order').sub, /^\d+ items across 3 orders$/, { what: 'items across orders' });
@@ -832,7 +834,10 @@ async function main() {
     console.error(`\nFAIL: ${failed instanceof CheckFailed ? failed.message : failed.stack ?? failed}`);
     process.exit(1);
   }
-  console.log('\nPASS: the Desk journey works on a phone and a laptop, in light and dark mode.');
+  const ran = (process.env.E2E_ONLY ?? '').split(',').filter(Boolean);
+  console.log(ran.length
+    ? `\nPASS: the Desk journey works (${ran.join(', ')}${ran.includes('phone') ? ', dark-360' : ''}).`
+    : '\nPASS: the Desk journey works on a phone and a laptop, in light and dark mode.');
 }
 
 await main();
