@@ -347,3 +347,30 @@ test('item history and suggestions while typing an item', async () => {
   assert.deepEqual(suggestItems(history, 'Travis Scott Jordan 1 Low'), []);
   assert.deepEqual(suggestItems(history, 't'), []);
 });
+
+test('supplier history and suggestions', async () => {
+  const { supplierHistory, suggestSuppliers } = await import('../public/desk/lib/search.js');
+  const deals = [
+    { id: 'd1', number: 3, sale_date: '2026-10-05', status: 'agreed', items: [
+      { description: 'Travis Scott Jordan 1 Low', qty: 1, cost_status: 'actual', unit_cost: 300, supplier: 'Charlie Wakefield', sourced_at: '2026-10-04' },
+      { description: 'Dunk Low', qty: 2, cost_status: 'actual', unit_cost: 90, supplier: 'charlie wakefield' },
+      { description: 'Yeezy', qty: 1, cost_status: 'expected', expected_unit_cost: 150, supplier: 'StockX' },
+      { description: 'From stock', qty: 1, cost_status: 'actual', unit_cost: 200, supplier: 'GOAT', stock_item_id: 's1' },
+    ] },
+    { id: 'd2', status: 'cancelled', items: [{ description: 'x', qty: 1, cost_status: 'actual', unit_cost: 5, supplier: 'Gone Ltd' }] },
+  ];
+  const history = supplierHistory({ deals, stock: [{ id: 's1', name: 'Jordan 4', qty: 2, unit_cost: 200, supplier: 'GOAT', bought_at: '2026-09-01' }] });
+  const charlie = history[0];
+  assert.equal(charlie.name, 'Charlie Wakefield');
+  assert.equal(charlie.lines, 2);
+  assert.equal(charlie.units, 3);
+  assert.equal(charlie.spent, 480);
+  assert.equal(history.find((s) => s.name === 'StockX').spent, 0); // planned, not spent
+  assert.equal(history.find((s) => s.name === 'GOAT').spent, 400); // stock counted once
+  assert.ok(!history.some((s) => s.name === 'Gone Ltd'));
+  assert.deepEqual(suggestSuppliers(history, 'char').map((s) => s.name), ['Charlie Wakefield']);
+  assert.deepEqual(suggestSuppliers(history, 'wake').map((s) => s.name), ['Charlie Wakefield']);
+  assert.equal(suggestSuppliers(history, '')[0].name, 'Charlie Wakefield'); // regulars first, before typing
+  assert.ok(suggestSuppliers(history, 'eb').some((s) => s.name === 'eBay')); // platforms built in
+  assert.deepEqual(suggestSuppliers(history, 'Charlie Wakefield'), []);
+});

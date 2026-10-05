@@ -51,6 +51,7 @@ const ROUTES = [
   { name: 'client', pattern: '/clients/:id', view: 'client', title: 'Client', section: 'clients' },
   { name: 'stock', pattern: '/stock', view: 'stock', title: 'Stock', section: 'stock' },
   { name: 'trips', pattern: '/trips', view: 'trips', title: 'Trips', section: 'trips' },
+  { name: 'suppliers', pattern: '/suppliers', view: 'suppliers', title: 'Suppliers', section: 'suppliers' },
   { name: 'check', pattern: '/check', view: 'calculator', title: 'Deal checker', section: 'check' },
   { name: 'settings', pattern: '/settings', view: 'settings', title: 'Settings', section: 'settings' },
   { name: 'search', pattern: '/search', view: 'search', title: 'Search', section: 'search' },
@@ -338,6 +339,7 @@ const NAV_MAIN = [
 
 const NAV_TOOLS = [
   { section: 'trips', href: '#/trips', label: 'Trips', icon: 'car' },
+  { section: 'suppliers', href: '#/suppliers', label: 'Suppliers', icon: 'inbox' },
   { section: 'check', href: '#/check', label: 'Deal checker', icon: 'calculator' },
   { section: 'settings', href: '#/settings', label: 'Settings', icon: 'sliders' },
 ];
@@ -352,6 +354,7 @@ const TABS = [
 const MORE_LINKS = [
   { section: 'stock', href: '#/stock', label: 'Stock', hint: "What you've bought and still hold", icon: 'box' },
   { section: 'trips', href: '#/trips', label: 'Trips', hint: 'Drives, miles and fuel costs', icon: 'car' },
+  { section: 'suppliers', href: '#/suppliers', label: 'Suppliers', hint: "Who you've bought from", icon: 'inbox' },
   { section: 'settings', href: '#/settings', label: 'Settings', hint: 'Home address, car and rates', icon: 'sliders' },
 ];
 

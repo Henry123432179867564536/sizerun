@@ -72,7 +72,8 @@ import {
   useFormBarHeight,
   useMedia,
 } from './deals.js';
-import { itemHistory } from '../lib/search.js';
+import { itemHistory, supplierHistory } from '../lib/search.js';
+import SupplierField from '../components/supplier-field.js';
 
 const DONE_STATUSES = new Set(['delivered', 'completed']);
 const PAYMENTS_ID = 'sale-payments';
@@ -535,6 +536,7 @@ function ItemSheet({ store, deal, item, onClose }) {
   });
 
   const history = useMemo(() => itemHistory({ deals: stockData?.deals ?? [], stock: stockData?.stock ?? [] }), [stockData]);
+  const suppliers = useMemo(() => supplierHistory({ deals: stockData?.deals ?? [], stock: stockData?.stock ?? [] }), [stockData]);
   const choices = useMemo(() => {
     if (!stockData) return [];
     // This line's own share of its stock is free again while it is being edited.
@@ -609,6 +611,7 @@ function ItemSheet({ store, deal, item, onClose }) {
         maxQty=${maxQty}
         onChange=${(patch) => setDraft((current) => ({ ...current, ...patch }))}
         history=${history}
+        suppliers=${suppliers}
       />
       ${draft.source === 'stock' && stockError && html`<p class="sd-reason tone-warn">Couldn't load your stock: ${stockError.message}</p>`}
       ${draft.source === 'stock' && !stockData && !stockError && html`<p class="sd-reason">Loading your stock…</p>`}
@@ -620,6 +623,11 @@ function MarkBoughtModal({ store, item, onClose, onBought }) {
   const [cost, setCost] = useState(amountText(item.expected_unit_cost));
   const [supplier, setSupplier] = useState(item.supplier ?? '');
   const [boughtOn, setBoughtOn] = useState(todayISO());
+  const { data: past } = useStoreData(store, async (s) => {
+    const [deals, stock] = await Promise.all([s.deals.list(), s.stock.list({ includeArchived: true })]);
+    return { deals, stock };
+  });
+  const suppliers = useMemo(() => supplierHistory({ deals: past?.deals ?? [], stock: past?.stock ?? [] }), [past]);
   const [showErrors, setShowErrors] = useState(false);
   const [saving, setSaving] = useState(false);
   const qty = num(item.qty);
@@ -674,9 +682,7 @@ function MarkBoughtModal({ store, item, onClose, onBought }) {
         <${Field} label="Bought on" required error=${showErrors && dateError}>
           <${Input} type="date" max=${todayISO()} value=${boughtOn} onInput=${(event) => setBoughtOn(event.currentTarget.value)} />
         <//>
-        <${Field} label="Bought from" class="span-all">
-          <${Input} autocomplete="off" placeholder="e.g. Selfridges" value=${supplier} onInput=${(event) => setSupplier(event.currentTarget.value)} />
-        <//>
+        <${SupplierField} class="span-all" value=${supplier} history=${suppliers} onChange=${setSupplier} />
       </div>
       ${varianceNote}
     </div>

@@ -34,6 +34,8 @@ import {
 import { EPS, dealNumber, num, stockLevels } from '../lib/calc.js';
 import { CONDITIONS, conditionLabel, date as formatDate, money, plural, todayISO } from '../lib/format.js';
 import { ListRow, usePhone } from './clients.js';
+import { supplierHistory } from '../lib/search.js';
+import SupplierField from '../components/supplier-field.js';
 
 const MAX_NAME = 120;
 const MAX_QTY = 100000;
@@ -369,9 +371,12 @@ function StockEditor({ store, row, deals, suggestions, busy, onClose, onDelete }
         <${Field} label="Bought on" error=${shown.bought_at}>
           <${Input} type="date" value=${form.bought_at} max=${todayISO()} onInput=${set('bought_at')} />
         <//>
-        <${Field} label="Supplier">
-          <${Input} value=${form.supplier} list=${`${formId}-suppliers`} autocomplete="off" placeholder="e.g. Nike app, StockX" onInput=${set('supplier')} />
-        <//>
+        <${SupplierField}
+          label="Supplier"
+          value=${form.supplier}
+          history=${suggestions.suppliers}
+          onChange=${(supplier) => setForm((prev) => ({ ...prev, supplier }))}
+        />
         <${Field} label="Kept at" class="span-all">
           <${Input} value=${form.location} list=${`${formId}-locations`} autocomplete="off" placeholder="e.g. Home, storage unit" onInput=${set('location')} />
         <//>
@@ -388,7 +393,6 @@ function StockEditor({ store, row, deals, suggestions, busy, onClose, onDelete }
         </div>`}
       </div>
       <datalist id=${`${formId}-brands`}>${suggestions.brands.map((value) => html`<option key=${value} value=${value} />`)}</datalist>
-      <datalist id=${`${formId}-suppliers`}>${suggestions.suppliers.map((value) => html`<option key=${value} value=${value} />`)}</datalist>
       <datalist id=${`${formId}-locations`}>${suggestions.locations.map((value) => html`<option key=${value} value=${value} />`)}</datalist>
       ${row?.uses.length > 0 && html`<div>
         <p class="field-label st-uses-title">On sales</p>
@@ -584,9 +588,9 @@ export default function StockView({ store, params, navigate }) {
   }, [searched, activeFilter, sort]);
   const suggestions = useMemo(() => ({
     brands: uniqueSorted(rows.map((row) => row.item.brand)),
-    suppliers: uniqueSorted(rows.map((row) => row.item.supplier)),
+    suppliers: supplierHistory({ deals: data?.deals ?? [], stock: rows.map((row) => row.item) }),
     locations: uniqueSorted(rows.map((row) => row.item.location)),
-  }), [rows]);
+  }), [rows, data]);
 
   const hasArchived = rows.some((row) => row.item.archived);
   const tabs = FILTERS

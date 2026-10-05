@@ -424,3 +424,82 @@ export function suggestItems(history, typed, limit = 6) {
   scored.sort((a, b) => b.score - a.score || b.entry.count - a.entry.count || (b.entry.lastDate || '').localeCompare(a.entry.lastDate || ''));
   return scored.slice(0, limit).map((s) => s.entry);
 }
+
+// ---- suppliers ------------------------------------------------------------------------------
+
+/** Common places to buy, offered even before they've been used. */
+export const PLATFORMS = Object.freeze(['StockX', 'GOAT', 'eBay', 'Laced', 'Vinted', 'Depop', 'Klekt', 'Nike', 'END.', 'Size?', 'JD Sports', 'Selfridges']);
+
+/**
+ * Everyone the owner has bought from, from sale lines (bought or planned) and stock:
+ * [{ name, lines, units, spent, lastDate, items: [{ description, size, qty, unitCost, date,
+ *    planned, dealId, dealNumber, stockId }] }], most used first. Names that differ only in
+ * case/punctuation are merged, keeping the most-used spelling. `spent` counts only actual
+ * purchases (bought lines and stock), not planned ones.
+ */
+export function supplierHistory({ deals = [], stock = [] } = {}) {
+  const byKey = new Map();
+  const add = (rawName, item) => {
+    const name = String(rawName ?? '').trim();
+    if (!name) return;
+    const key = normalize(name);
+    if (!key) return;
+    let entry = byKey.get(key);
+    if (!entry) {
+      entry = { name, spellings: new Map(), lines: 0, units: 0, spent: 0, lastDate: '', items: [] };
+      byKey.set(key, entry);
+    }
+    entry.spellings.set(name, (entry.spellings.get(name) ?? 0) + 1);
+    entry.lines += 1;
+    entry.units += item.qty;
+    if (!item.planned) entry.spent += item.qty * item.unitCost;
+    if ((item.date ?? '') > entry.lastDate) entry.lastDate = item.date ?? '';
+    entry.items.push(item);
+  };
+  for (const deal of deals) {
+    if (deal?.status === 'cancelled') continue;
+    for (const line of deal?.items ?? []) {
+      if (line.stock_item_id) continue; // counted once, on the stock line it came from
+      const planned = line.cost_status !== 'actual';
+      add(line.supplier, {
+        description: line.description ?? '', size: line.size ?? null, qty: Number(line.qty) || 1,
+        unitCost: Number(planned ? line.expected_unit_cost : line.unit_cost) || 0,
+        date: line.sourced_at || deal.sale_date || '', planned, dealId: deal.id ?? null, dealNumber: deal.number ?? null, stockId: null,
+      });
+    }
+  }
+  for (const s of stock) {
+    add(s.supplier, {
+      description: s.name ?? '', size: s.size ?? null, qty: Number(s.qty) || 0, unitCost: Number(s.unit_cost) || 0,
+      date: s.bought_at || '', planned: false, dealId: null, dealNumber: null, stockId: s.id ?? null,
+    });
+  }
+  return [...byKey.values()]
+    .map(({ spellings, ...entry }) => ({
+      ...entry,
+      name: [...spellings.entries()].sort((a, b) => b[1] - a[1])[0][0],
+      items: entry.items.sort((a, b) => (b.date || '').localeCompare(a.date || '')),
+    }))
+    .sort((a, b) => b.lines - a.lines || (b.lastDate || '').localeCompare(a.lastDate || ''));
+}
+
+/**
+ * Supplier names for the "Bought from" box: your own suppliers first (most used), then the
+ * common platforms. With nothing typed, the top few are offered so a regular is one tap away.
+ * Every typed word must start a word of the name. Nothing once the box matches a name exactly.
+ */
+export function suggestSuppliers(history, typed, limit = 6) {
+  const query = normalize(typed);
+  const own = history.map((entry) => ({ name: entry.name, lines: entry.lines, lastDate: entry.lastDate }));
+  const known = new Set(own.map((entry) => normalize(entry.name)));
+  const all = [...own, ...PLATFORMS.filter((p) => !known.has(normalize(p))).map((name) => ({ name, lines: 0, lastDate: '' }))];
+  if (!query) return all.slice(0, limit);
+  if (all.some((entry) => normalize(entry.name) === query)) return [];
+  const words = query.split(' ');
+  return all
+    .filter((entry) => {
+      const parts = normalize(entry.name).split(' ');
+      return words.every((w) => parts.some((p) => p.startsWith(w)));
+    })
+    .slice(0, limit);
+}
