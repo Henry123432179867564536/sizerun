@@ -62,6 +62,9 @@
     var bm = document.querySelector('.boot-mark');
     var bn = typeof bb.name === 'string' ? bb.name.trim() : '';
     var bl = typeof bb.logo_url === 'string' ? bb.logo_url.split('#')[0] : '';
+    if (/^#[0-9a-f]{6}$/i.test(bb.background_color || '') && !matchMedia('(prefers-color-scheme: dark)').matches) {
+      document.documentElement.style.setProperty('--paper', bb.background_color);
+    }
     if (/^#[0-9a-f]{6}$/i.test(bb.brand_color || '')) {
       var bh = parseInt(bb.brand_color.slice(1), 16);
       bm.style.background = bb.brand_color;

@@ -144,6 +144,7 @@ const SCHEMA = {
       // accent colour as '#RRGGBB'. Both null until the owner sets them.
       logo_url: text({ label: 'Logo' }),
       brand_color: text({ label: 'Brand colour' }),
+      background_color: text({ label: 'Background colour' }),
     },
     checks: [
       rule('desk_settings_mpg_positive', positive('mpg'), 'MPG must be more than 0.'),
@@ -160,6 +161,7 @@ const SCHEMA = {
       rule('desk_settings_home_lng_range', within('home_lng', -180, 180), "Home location isn't a valid map position."),
       rule('desk_settings_home_coords_pair', bothOrNeither('home_lat', 'home_lng'), 'Home location needs both latitude and longitude.'),
       rule('desk_settings_brand_color_hex', (row) => isNull(row.brand_color) || HEX_COLOR_PATTERN.test(row.brand_color), BRAND_COLOR_MESSAGE),
+      rule('desk_settings_background_color_hex', (row) => isNull(row.background_color) || HEX_COLOR_PATTERN.test(row.background_color), 'Use a colour like #EDEDE8.'),
       // The database caps logo_url at 2,048 characters. Local mode keeps the image itself as a
       // data: URL, so it gets a size cap instead.
       rule('desk_settings_logo_url_length', (row) => isNull(row.logo_url) || validLogoUrl(row.logo_url), "That logo can't be saved — upload it again."),

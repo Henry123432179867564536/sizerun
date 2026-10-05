@@ -41,6 +41,17 @@ export const PRESETS = Object.freeze([
   { name: 'Ember', hex: '#B5471B' },
 ].map(Object.freeze));
 
+// Page background presets (null = Desk's own paper).
+export const BACKGROUND_PRESETS = Object.freeze([
+  { name: 'Desk', hex: null },
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Cool grey', hex: '#EEF1F5' },
+  { name: 'Sand', hex: '#F4EFE6' },
+  { name: 'Mint', hex: '#E8F3EE' },
+  { name: 'Sky', hex: '#E9F1F9' },
+  { name: 'Blush', hex: '#F7ECEE' },
+].map(Object.freeze));
+
 // Surfaces from desk.css the guard measures against.
 const WHITE = '#FFFFFF';
 const LIGHT_PAPER = '#EDEDE8';
@@ -226,6 +237,7 @@ export function brandFromSettings(settings) {
     name,
     logo: parseLogo(s.logo_url),
     color: normalizeHex(s.brand_color),
+    background: normalizeHex(s.background_color),
     monogram: monogram(name),
     title: name ?? APP_NAME,
   };
@@ -255,17 +267,47 @@ function block(selector, p, signal) {
   return `${selector} { ${vars.join('; ')}; }`;
 }
 
-/** The CSS applyBrand installs for a brand colour (exported for tests). */
-export function brandCss(value) {
+/**
+ * The page background for a chosen colour, or null for Desk's own paper. Light: the colour,
+ * lightened step by step until body text (ink 7:1) and muted text (ink-3 2.8:1) stay readable.
+ * Dark: Desk's dark paper with a little of the colour's hue mixed in. `adjusted` says the light
+ * colour had to be lightened.
+ */
+export function backgroundPalette(value) {
+  const hex = normalizeHex(value);
+  if (!hex) return null;
+  const readable = (c) => contrast(INK_LIGHT, c) >= 7 && contrast('#8A9099', c) >= 2.8;
+  const light = readable(hex) ? hex : shiftUntil(hex, 0.01, readable);
+  const [h, s] = toHsl(hex);
+  const dark = s < 0.04 ? DARK_PAPER : mix(fromHsl([h, Math.min(1, s), 0.45]), DARK_PAPER, 0.07);
+  return { light, dark, adjusted: light !== hex };
+}
+
+function paperBlock(selector, paper) {
+  return `${selector} { --paper: ${paper}; }`;
+}
+
+/** The CSS applyBrand installs for a brand colour and page background (exported for tests). */
+export function brandCss(value, background = null) {
   const palette = brandPalette(value);
   const p = palette ?? DEFAULT_PALETTE;
   const signal = Boolean(palette);
-  return [
+  const bg = backgroundPalette(background);
+  const rules = [
     block(':root', p.light, signal && 'light'),
     `@media (prefers-color-scheme: dark) { ${block(':root:not([data-theme="light"])', p.dark, signal && 'dark')} }`,
     block(':root[data-theme="dark"]', p.dark, signal && 'dark'),
     block(':root[data-theme="light"]', p.light, signal && 'light'),
-  ].join('\n');
+  ];
+  if (bg) {
+    rules.push(
+      paperBlock(':root', bg.light),
+      `@media (prefers-color-scheme: dark) { ${paperBlock(':root:not([data-theme="light"])', bg.dark)} }`,
+      paperBlock(':root[data-theme="dark"]', bg.dark),
+      paperBlock(':root[data-theme="light"]', bg.light),
+    );
+  }
+  return rules.join('\n');
 }
 
 /** Sets the brand on the page: CSS variables, title and theme-color. Safe to call repeatedly. */
@@ -279,8 +321,10 @@ export function applyBrand(settings) {
     vars.id = VARS_ID;
     document.head.append(vars);
   }
-  const css = brandCss(brand.color);
+  const css = brandCss(brand.color, brand.background);
   if (vars.textContent !== css) vars.textContent = css;
+  // The boot screen may have set the cached background inline; the stylesheet owns it now.
+  document.documentElement.style.removeProperty('--paper');
 
   const nextTitle = brand.title;
   if (nextTitle !== appTitle) {
@@ -291,12 +335,12 @@ export function applyBrand(settings) {
     else if (current.endsWith(` · ${old}`)) document.title = `${current.slice(0, -old.length)}${nextTitle}`;
   }
 
-  // Browser chrome (Android's address bar, Safari's tab bar) in the brand fill.
-  const palette = brandPalette(brand.color);
+  // Browser chrome (Android's address bar, Safari's tab bar) matches the page background.
+  const bg = backgroundPalette(brand.background);
   for (const meta of document.querySelectorAll('meta[name="theme-color"]')) {
     if (!meta.dataset.deskDefault) meta.dataset.deskDefault = meta.getAttribute('content') ?? '';
     const dark = /dark/.test(meta.getAttribute('media') ?? '');
-    const content = palette ? palette[dark ? 'dark' : 'light'].brand : meta.dataset.deskDefault;
+    const content = bg ? bg[dark ? 'dark' : 'light'] : meta.dataset.deskDefault;
     if (meta.getAttribute('content') !== content) meta.setAttribute('content', content);
   }
   return brand;
@@ -324,11 +368,11 @@ export function cacheBrand(settings, storage = defaultStorage(), key = BRAND_CAC
   if (!storage) return;
   const brand = brandFromSettings(settings);
   try {
-    if (!brand.name && !brand.logo && !brand.color) {
+    if (!brand.name && !brand.logo && !brand.color && !brand.background) {
       storage.removeItem(key);
       return;
     }
-    const entry = { v: 1, name: brand.name, logo_url: brand.logo ? settings.logo_url : null, brand_color: brand.color };
+    const entry = { v: 1, name: brand.name, logo_url: brand.logo ? settings.logo_url : null, brand_color: brand.color, background_color: brand.background };
     const json = JSON.stringify(entry);
     if (storage.getItem(key) === json) return;
     try {
@@ -350,8 +394,8 @@ export function readCachedBrand(storage = defaultStorage(), key = BRAND_CACHE_KE
     const entry = JSON.parse(raw);
     if (!entry || typeof entry !== 'object') return null;
     const brand = brandFromSettings(entry);
-    if (!brand.name && !brand.logo && !brand.color) return null;
-    return { name: brand.name, logo_url: brand.logo ? entry.logo_url : null, brand_color: brand.color };
+    if (!brand.name && !brand.logo && !brand.color && !brand.background) return null;
+    return { name: brand.name, logo_url: brand.logo ? entry.logo_url : null, brand_color: brand.color, background_color: brand.background };
   } catch {
     return null;
   }

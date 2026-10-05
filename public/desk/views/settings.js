@@ -18,7 +18,9 @@ import {
   Field,
   Input,
   Loading,
+  Modal,
   Page,
+  Segmented,
   Select,
   Switch,
   certaintyMeta,
@@ -30,8 +32,9 @@ import { EPS, assessDeal, dealNumber, dealTotals, round2, tripTotals } from '../
 import { date, duration, miles, money, pct, plural, ppl, todayISO } from '../lib/format.js';
 import { DEFAULT_SETTINGS } from '../lib/store.js';
 import {
-  BrandLockup, DEFAULT_BRAND, Logo, PRESETS, applyBrand, brandCacheKey, brandFromSettings, cacheBrand, inkFor, normalizeHex, paletteFor, prepareLogo,
+  BACKGROUND_PRESETS, BrandLockup, DEFAULT_BRAND, Logo, PRESETS, applyBrand, backgroundPalette, brandCacheKey, brandFromSettings, cacheBrand, inkFor, normalizeHex, paletteFor, prepareLogo,
 } from '../lib/brand.js';
+import { analyseBackground, removeBackground } from '../lib/bgremove.js';
 import AddressInput, { placeText } from '../components/address-input.js';
 import { FUEL_TYPE_OPTIONS } from '../components/trip-planner.js';
 
@@ -80,15 +83,26 @@ const CSS = `
 .bz-hex { flex: 0 1 8.5rem; min-width: 7rem; }
 .bz-hex .input { font-family: var(--mono); text-transform: uppercase; }
 .bz-colour-field .field-hint + .field-hint { margin-top: 2px; }
-.bz-preview { --brand: var(--pv-brand-l); --brand-ink: var(--pv-ink-l); --brand-tint: var(--pv-tint-l); --brand-text: var(--pv-text-l); --pv-on: var(--pv-on-l); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--paper); }
+.bz-preview { --brand: var(--pv-brand-l); --brand-ink: var(--pv-ink-l); --brand-tint: var(--pv-tint-l); --brand-text: var(--pv-text-l); --pv-on: var(--pv-on-l); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px 16px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-panel); background: var(--pv-paper-l, var(--paper)); }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .bz-preview { --brand: var(--pv-brand-d); --brand-ink: var(--pv-ink-d); --brand-tint: var(--pv-tint-d); --brand-text: var(--pv-text-d); --pv-on: var(--pv-on-d); }
+  :root:not([data-theme="light"]) .bz-preview { background: var(--pv-paper-d, var(--paper)); --brand: var(--pv-brand-d); --brand-ink: var(--pv-ink-d); --brand-tint: var(--pv-tint-d); --brand-text: var(--pv-text-d); --pv-on: var(--pv-on-d); }
 }
-:root[data-theme="dark"] .bz-preview { --brand: var(--pv-brand-d); --brand-ink: var(--pv-ink-d); --brand-tint: var(--pv-tint-d); --brand-text: var(--pv-text-d); --pv-on: var(--pv-on-d); }
+:root[data-theme="dark"] .bz-preview { background: var(--pv-paper-d, var(--paper)); --brand: var(--pv-brand-d); --brand-ink: var(--pv-ink-d); --brand-tint: var(--pv-tint-d); --brand-text: var(--pv-text-d); --pv-on: var(--pv-on-d); }
 .bz-preview-label { flex-basis: 100%; margin: 0 0 -4px; color: var(--ink-3); font-size: 12px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; }
 .bz-preview-ui { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .bz-pv-btn { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--brand-text); color: var(--pv-on); font-size: 13px; font-weight: 500; }
 .bz-pv-pill { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border-radius: var(--r-ctl); background: var(--brand-tint); color: var(--brand-text); font-size: 13px; font-weight: 500; }
+.bz-bg-banner { margin-top: 12px; }
+.bgr-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+.bgr-previews figure { margin: 0; min-width: 0; }
+.bgr-frame { display: grid; place-items: center; height: 120px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
+.bgr-frame img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.bgr-checker { background-color: #FFFFFF; background-image: linear-gradient(45deg, #E4E4E0 25%, transparent 25%, transparent 75%, #E4E4E0 75%), linear-gradient(45deg, #E4E4E0 25%, transparent 25%, transparent 75%, #E4E4E0 75%); background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.bgr-previews figcaption { margin-top: 6px; color: var(--ink-3); font-size: 13px; }
+.bgr-controls { display: flex; flex-direction: column; gap: 16px; }
+.bgr-busy { color: var(--ink-3); font-size: 13px; min-height: 18px; }
+.bz-swatch-paper { box-shadow: inset 0 0 0 1px var(--line-2); }
+.bz-swatch-paper[aria-pressed="true"] { box-shadow: inset 0 0 0 1px var(--line-2), 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
 @media (min-width: 640px) {
   .settings-data { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -159,6 +173,7 @@ function formFromSettings(settings) {
     // The store's placeholder name ('Sizemill') reads as "not set yet".
     business_name: s.business_name && s.business_name !== DEFAULT_SETTINGS.business_name ? s.business_name : '',
     brand_color: normalizeHex(s.brand_color) ?? '',
+    background_color: normalizeHex(s.background_color) ?? '',
     home: homeFromSettings(s),
     home_label: s.home_label ?? '',
     mpg: numberText(s.mpg),
@@ -178,6 +193,7 @@ function validate(form) {
 
   if (form.business_name.trim().length > MAX_NAME_LENGTH) errors.business_name = `Keep it under ${MAX_NAME_LENGTH} characters.`;
   if (form.brand_color.trim() && !normalizeHex(form.brand_color)) errors.brand_color = 'Use a colour like #1F4B85.';
+  if (form.background_color.trim() && !normalizeHex(form.background_color)) errors.background_color = 'Use a colour like #F4EFE6.';
   if (form.home_label.trim().length > MAX_HOME_LABEL_LENGTH) errors.home_label = `Keep it under ${MAX_HOME_LABEL_LENGTH} characters.`;
 
   const mpg = parseNumber(form.mpg);
@@ -220,6 +236,7 @@ function patchFromForm(form) {
     business_name: form.business_name.trim() || null,
     // Desk's own navy is the default, stored as "no brand colour".
     brand_color: brandColor(form.brand_color),
+    background_color: normalizeHex(form.background_color),
     home_label: address ? form.home_label.trim() || null : null,
     home_address: address || null,
     home_lat: located ? Number(form.home.lat) : null,
@@ -522,9 +539,10 @@ function showBrand(settings, store) {
   cacheBrand(settings, undefined, brandCacheKey(store?.mode === 'memory'));
 }
 
-function previewVars(color) {
+function previewVars(color, background) {
   const p = paletteFor(color);
-  const vars = [];
+  const bg = backgroundPalette(background);
+  const vars = bg ? [`--pv-paper-l:${bg.light}`, `--pv-paper-d:${bg.dark}`] : [];
   for (const scheme of ['light', 'dark']) {
     const k = scheme === 'light' ? 'l' : 'd';
     vars.push(`--pv-brand-${k}:${p[scheme].brand}`, `--pv-ink-${k}:${p[scheme].ink}`, `--pv-tint-${k}:${p[scheme].tint}`, `--pv-text-${k}:${p[scheme].text}`);
@@ -532,6 +550,45 @@ function previewVars(color) {
   // Text on a button filled with the text shade, as the app's primary buttons are.
   vars.push(`--pv-on-l:${inkFor(p.light.text)}`, `--pv-on-d:${inkFor(p.dark.text, '#111418')}`);
   return vars.join(';');
+}
+
+// ---- logo background removal helpers (canvas) ----
+
+const nextFrame = () => new Promise((resolve) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => setTimeout(resolve, 0)) : setTimeout(resolve, 0)));
+
+// Decodes a logo (its public URL or a data: URL) into ImageData, at most `max` px on the longest edge.
+async function loadImageData(src, max) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = src;
+  await img.decode();
+  const scale = Math.min(1, max / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+  const width = Math.max(1, Math.round(img.naturalWidth * scale));
+  const height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, width, height);
+  return ctx.getImageData(0, 0, width, height);
+}
+
+function imageCanvas(image) {
+  const canvas = document.createElement('canvas');
+  canvas.width = image.width;
+  canvas.height = image.height;
+  canvas.getContext('2d').putImageData(new ImageData(image.data, image.width, image.height), 0, 0);
+  return canvas;
+}
+
+function imageToUrl(image) {
+  return imageCanvas(image).toDataURL('image/png');
+}
+
+function imageToBlob(image) {
+  return new Promise((resolve, reject) => {
+    imageCanvas(image).toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Couldn't prepare your logo — try again."))), 'image/png');
+  });
 }
 
 // "Your business": logo (uploaded straight away), name and brand colour (saved with the form).
@@ -550,6 +607,101 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
   const brand = brandFromSettings({ business_name: form.business_name, logo_url: settings.logo_url, brand_color: hex });
   const palette = paletteFor(hex);
   const hasLogo = Boolean(brand.logo);
+  const bgHex = normalizeHex(form.background_color);
+  const bgPalette = backgroundPalette(bgHex);
+  const bgChosen = bgHex ?? (form.background_color.trim() ? undefined : null);
+  const bgIsPreset = BACKGROUND_PRESETS.some((preset) => preset.hex === bgChosen);
+
+  // Background removal: check the current logo for a solid background, offer to remove it.
+  const logoSrc = brand.logo?.src ?? null;
+  const [bgCheck, setBgCheck] = useState(null); // { src, suggest, opaque }
+  const [bgDismissed, setBgDismissed] = useState(false);
+  const [editor, setEditor] = useState(null); // { source, strength, fillHoles, result, preview, working }
+  const [original, setOriginal] = useState(null); // the logo before removal, for Restore
+  useEffect(() => {
+    if (!logoSrc) return undefined;
+    let live = true;
+    loadImageData(logoSrc, 256)
+      .then((img) => {
+        if (!live) return;
+        const found = analyseBackground(img);
+        setBgCheck({ src: logoSrc, suggest: found.suggest, opaque: !found.hasTransparency });
+      })
+      .catch(() => live && setBgCheck({ src: logoSrc, suggest: false, opaque: false }));
+    return () => {
+      live = false;
+    };
+  }, [logoSrc]);
+  const check = bgCheck?.src === logoSrc ? bgCheck : null;
+
+  function runRemoval(source, strength, fillHoles) {
+    const result = removeBackground(source, { strength, fillHoles });
+    return { result, preview: imageToUrl(result.image) };
+  }
+
+  async function openRemover() {
+    setBusy('bg');
+    setLogoError(null);
+    try {
+      const source = await loadImageData(logoSrc, 1024);
+      await nextFrame();
+      setEditor({ source, strength: 'normal', fillHoles: true, working: false, ...runRemoval(source, 'normal', true) });
+    } catch {
+      if (mountedRef.current) setLogoError("Couldn't read your logo — try uploading it again.");
+    } finally {
+      if (mountedRef.current) setBusy(null);
+    }
+  }
+
+  async function tune(patch) {
+    const next = { ...editor, ...patch, working: true };
+    setEditor(next);
+    await nextFrame();
+    if (!mountedRef.current) return;
+    setEditor({ ...next, working: false, ...runRemoval(next.source, next.strength, next.fillHoles) });
+  }
+
+  async function uploadImageBlob(blob, type) {
+    const logo = await prepareLogo(new File([blob], `logo.${type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'}`, { type }));
+    showBrand(await store.settings.uploadLogo(logo.blob, { width: logo.width, height: logo.height, tone: logo.tone }), store);
+  }
+
+  async function useRemoved() {
+    const current = editor;
+    setEditor({ ...current, working: true });
+    setBusy('upload');
+    try {
+      const before = await fetch(logoSrc).then((r) => r.blob()).catch(() => null);
+      await uploadImageBlob(await imageToBlob(current.result.image), 'image/png');
+      if (!mountedRef.current) return;
+      if (before) setOriginal(before);
+      setEditor(null);
+      setBgDismissed(true);
+      toast('Background removed.', { tone: 'gain' });
+    } catch (err) {
+      if (!mountedRef.current) return;
+      setEditor({ ...current, working: false });
+      setLogoError(err instanceof Error && err.message ? err.message : "Couldn't save your logo — try again.");
+    } finally {
+      if (mountedRef.current) setBusy(null);
+    }
+  }
+
+  async function restoreOriginal() {
+    if (!original) return;
+    setBusy('upload');
+    setLogoError(null);
+    try {
+      await uploadImageBlob(original, original.type || 'image/png');
+      if (!mountedRef.current) return;
+      setOriginal(null);
+      toast('Original logo restored.');
+    } catch (err) {
+      if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't restore your logo — try again.");
+    } finally {
+      if (mountedRef.current) setBusy(null);
+    }
+  }
 
   async function onFile(event) {
     const file = event.currentTarget.files?.[0];
@@ -564,6 +716,8 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
     try {
       const logo = await prepareLogo(file);
       showBrand(await store.settings.uploadLogo(logo.blob, { width: logo.width, height: logo.height, tone: logo.tone }), store);
+      setOriginal(null);
+      setBgDismissed(false);
       toast(hasLogo ? 'Logo replaced.' : 'Logo added.', { tone: 'gain' });
     } catch (err) {
       if (mountedRef.current) setLogoError(err instanceof Error && err.message ? err.message : "Couldn't upload your logo — try again.");
@@ -624,11 +778,55 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
               disabled=${busy === 'remove'}
               onClick=${() => fileRef.current?.click()}
             >${busy === 'upload' ? 'Uploading…' : hasLogo ? 'Replace' : 'Upload logo'}<//>
-            ${hasLogo && html`<${Button} size="sm" kind="ghost" icon="trash" loading=${busy === 'remove'} disabled=${busy === 'upload'} onClick=${remove}>Remove<//>`}
+            ${hasLogo && check?.opaque && html`<${Button} size="sm" icon="eye" loading=${busy === 'bg'} disabled=${Boolean(busy) && busy !== 'bg'} onClick=${openRemover}>Remove background<//>`}
+            ${hasLogo && original && html`<${Button} size="sm" kind="ghost" icon="refresh" disabled=${Boolean(busy)} onClick=${restoreOriginal}>Restore original<//>`}
+            ${hasLogo && html`<${Button} size="sm" kind="ghost" icon="trash" loading=${busy === 'remove'} disabled=${busy === 'upload'} onClick=${remove}>Remove logo<//>`}
           </div>
           ${logoError && html`<p class="bz-logo-error" role="alert">${logoError}</p>`}
         </div>
       </div>
+      ${hasLogo && check?.suggest && !bgDismissed && !original && html`<${Banner}
+        class="bz-bg-banner"
+        tone="signal"
+        icon="info"
+        title="Your logo has a solid background"
+        onDismiss=${() => setBgDismissed(true)}
+        actions=${html`<${Button} size="sm" kind="primary" loading=${busy === 'bg'} onClick=${openRemover}>Remove background<//>
+          <${Button} size="sm" kind="ghost" onClick=${() => setBgDismissed(true)}>Keep it<//>`}
+      >Remove it so your logo sits cleanly on Desk, in light and dark mode.<//>`}
+      ${editor && html`<${Modal}
+        title="Remove background"
+        onClose=${() => !editor.working && setEditor(null)}
+        footer=${html`<${Button} kind="ghost" disabled=${editor.working} onClick=${() => setEditor(null)}>Cancel<//>
+          <${Button} kind="primary" icon="check" loading=${editor.working && busy === 'upload'} disabled=${editor.working} onClick=${useRemoved}>Use this<//>`}
+      >
+        <div class="bgr-previews">
+          <figure><div class="bgr-frame bgr-checker"><img src=${logoSrc} alt="Your logo now" /></div><figcaption>Before</figcaption></figure>
+          <figure><div class="bgr-frame bgr-checker"><img src=${editor.preview} alt="Your logo without its background" /></div><figcaption>After</figcaption></figure>
+          <figure><div class="bgr-frame" style=${`background:${bgPalette?.light ?? '#EDEDE8'}`}><img src=${editor.preview} alt="" /></div><figcaption>On your page</figcaption></figure>
+          <figure><div class="bgr-frame" style=${`background:${palette.light.brand}`}><img src=${editor.preview} alt="" /></div><figcaption>On your colour</figcaption></figure>
+        </div>
+        <div class="bgr-controls">
+          <${Field} label="Strength" hint="Stronger removes more of the background around soft edges.">
+            <${Segmented}
+              label="Strength"
+              full
+              disabled=${editor.working}
+              value=${editor.strength}
+              options=${[{ value: 'gentle', label: 'Gentle' }, { value: 'normal', label: 'Normal' }, { value: 'strong', label: 'Strong' }]}
+              onChange=${(strength) => tune({ strength })}
+            />
+          <//>
+          <${Switch}
+            checked=${editor.fillHoles}
+            disabled=${editor.working}
+            onChange=${(fillHoles) => tune({ fillHoles })}
+            label="Also clear inside letters"
+            hint="Turn this off if white parts of your logo disappear."
+          />
+          <p class="bgr-busy" role="status">${editor.working ? 'Working…' : ''}</p>
+        </div>
+      <//>`}
 
       <div class="form-grid">
         <${Field} class="span-all" label="Business name" hint="Shown next to your logo and used to name your exports." error=${errorFor('business_name')}>
@@ -645,8 +843,8 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
         <//>
       </div>
 
-      <${Field} class="bz-colour-field" label="Brand colour" hint=${colourHint} error=${errorFor('brand_color')}>
-        <div class="bz-colours" role="group" aria-label="Brand colour">
+      <${Field} class="bz-colour-field" label="Button colour" hint=${colourHint} error=${errorFor('brand_color')}>
+        <div class="bz-colours" role="group" aria-label="Button colour">
           ${PRESETS.map((preset) => html`<button
             key=${preset.hex}
             type="button"
@@ -686,7 +884,54 @@ function BusinessCard({ store, settings, form, set, errorFor, touch }) {
         </div>
       <//>
 
-      <div class="bz-preview" style=${previewVars(hex)} aria-hidden="true">
+      <${Field}
+        class="bz-colour-field"
+        label="Background colour"
+        hint=${bgPalette?.adjusted ? 'We lightened it a little so text stays readable.' : 'The page behind your cards. Dark mode uses a deep shade of it.'}
+        error=${errorFor('background_color')}
+      >
+        <div class="bz-colours" role="group" aria-label="Background colour">
+          ${BACKGROUND_PRESETS.map((preset) => html`<button
+            key=${preset.name}
+            type="button"
+            class="bz-swatch bz-swatch-paper"
+            style=${`--sw:${preset.hex ?? '#EDEDE8'}`}
+            aria-pressed=${bgChosen === preset.hex ? 'true' : 'false'}
+            aria-label=${preset.hex ? preset.name : 'Desk default'}
+            title=${preset.hex ? preset.name : 'Desk default'}
+            onClick=${() => set('background_color', preset.hex ?? '')}
+          ></button>`)}
+          <label class=${`bz-swatch bz-swatch-custom${bgHex && !bgIsPreset ? ' is-on' : ''}`} style=${bgHex && !bgIsPreset ? `--sw:${bgHex}` : undefined} title="Custom colour">
+            <span class="sr-only">Custom background colour</span>
+            <input
+              type="color"
+              value=${(bgHex ?? '#EDEDE8').toLowerCase()}
+              onInput=${(event) => set('background_color', event.currentTarget.value.toUpperCase())}
+            />
+          </label>
+          <div class="bz-hex">
+            <${Input}
+              type="text"
+              placeholder="#EDEDE8"
+              autocomplete="off"
+              autocapitalize="characters"
+              autocorrect="off"
+              spellcheck=${false}
+              maxlength="7"
+              aria-label="Background colour code"
+              value=${form.background_color}
+              onInput=${(event) => set('background_color', event.currentTarget.value)}
+              onBlur=${(event) => {
+                const clean = normalizeHex(event.currentTarget.value);
+                if (clean) set('background_color', clean);
+                touch('background_color')();
+              }}
+            />
+          </div>
+        </div>
+      <//>
+
+      <div class="bz-preview" style=${previewVars(hex, form.background_color)} aria-hidden="true">
         <p class="bz-preview-label">Preview</p>
         <${BrandLockup} brand=${brand} />
         <div class="bz-preview-ui">
