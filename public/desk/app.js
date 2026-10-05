@@ -24,6 +24,7 @@ import {
 } from './lib/ui.js';
 
 const APP_NAME = 'Sizemill Desk';
+const HOME_LABEL = `${APP_NAME} — dashboard`;
 const SETUP_BANNER_KEY = 'sizemill.desk.setupBannerDismissed';
 const MIN_PASSWORD_LENGTH = 8;
 const GENERIC_ERROR = 'Something went wrong — please try again.';
@@ -351,7 +352,7 @@ function Sidebar({ route, user, local, onSignOut }) {
     <${Icon} name=${item.icon} size=${18} /><span>${item.label}</span>
   </a>`;
   return html`<aside class="sidebar">
-    <a class="brand" href="#/" aria-label="${APP_NAME} — dashboard">
+    <a class="brand" href="#/" aria-label=${HOME_LABEL}>
       <span class="brand-mark" aria-hidden="true"></span>
       <span class="brand-name">Sizemill<small>Desk</small></span>
     </a>
@@ -386,7 +387,7 @@ function TopBar({ route, header, local }) {
       ? html`<a class="topbar-lead" href=${back.href} aria-label=${`Back to ${back.label}`}>
           <${Icon} name="chevron-left" size=${24} />
         </a>`
-      : html`<a class="topbar-lead" href="#/" aria-label="${APP_NAME} — dashboard">
+      : html`<a class="topbar-lead" href="#/" aria-label=${HOME_LABEL}>
           <span class="brand-mark" aria-hidden="true"></span>
         </a>`}
     <div class="topbar-title" aria-hidden="true">${title}</div>
@@ -633,7 +634,7 @@ function AuthGate({ store, notice }) {
       </div>
       <h1 class="auth-title">${copy.title}</h1>
       <p class="auth-sub">${copy.sub}</p>
-      <form class="auth-form" ref=${formRef} onSubmit=${onSubmit} novalidate>
+      <form class="auth-form" ref=${formRef} onSubmit=${onSubmit} noValidate=${true}>
         ${success && html`<${Banner} tone="gain" icon="mail">${success}<//>`}
         ${error && html`<${Banner} tone="loss">${error}<//>`}
         <${Field} label="Email">
