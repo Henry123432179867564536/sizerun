@@ -348,7 +348,7 @@ async function saleStep(page, pass, problems) {
   await page.waitForFunction(() => window.location.hash === '#/sales/new');
   await waitForText(page.locator('.list-title', { hasText: CLIENT.name }), CLIENT.name, { what: 'client picked' });
   const first = page.locator('.repeat-block[data-item]').nth(0);
-  await first.getByLabel(/^Description/).fill(ITEM.description);
+  await first.getByLabel(/^Item/).fill(ITEM.description);
   await first.getByLabel('Size', { exact: true }).fill(ITEM.size);
   await first.getByLabel(/^Sale price each/).fill(ITEM.price);
   await first.getByLabel(/^Expected cost each/).fill(ITEM.expected);
@@ -356,7 +356,7 @@ async function saleStep(page, pass, problems) {
   await page.getByRole('button', { name: 'Add another item' }).click();
   const second = page.locator('.repeat-block[data-item]').nth(1);
   await second.waitFor();
-  await second.getByLabel(/^Description/).fill(ITEM2.description);
+  await second.getByLabel(/^Item/).fill(ITEM2.description);
   await second.getByLabel('Size', { exact: true }).fill(ITEM2.size);
   await second.getByRole('radio', { name: 'Bought' }).click();
   await second.getByLabel(/^Sale price each/).fill(ITEM2.price);
@@ -379,7 +379,7 @@ async function saleStep(page, pass, problems) {
   await guard.getByRole('button', { name: 'Keep editing' }).click();
   await guard.waitFor({ state: 'detached' });
   check(await page.evaluate(() => window.location.hash === '#/sales/new'), 'still on New sale after Keep editing');
-  check((await first.getByLabel(/^Description/).inputValue()) === ITEM.description, 'the form kept its items');
+  check((await first.getByLabel(/^Item/).inputValue()) === ITEM.description, 'the form kept its items');
 
   await saveSaleButton(page).click();
   await expectToast(page, /^Sale SM-\d{4} saved\.$/);
@@ -492,7 +492,7 @@ async function checkerStep(page, pass, problems) {
   await page.getByRole('button', { name: 'Turn into a sale' }).click();
   await page.waitForFunction(() => window.location.hash === '#/sales/new');
   await waitForText(page.locator('.banner-title'), 'Filled in from the deal checker', { what: 'prefill banner' });
-  check((await page.getByLabel(/^Description/).inputValue()) === CHECK.item, 'prefilled description');
+  check((await page.getByLabel(/^Item/).inputValue()) === CHECK.item, 'prefilled description');
   check((await page.getByLabel(/^Sale price each/).inputValue()) === CHECK.sale, 'prefilled sale price');
   check((await page.getByLabel(/^Expected cost each/).inputValue()) === CHECK.buy, 'prefilled expected cost');
   await waitForText(page.locator('form'), /round trip/, { what: 'prefilled drive' });
@@ -522,7 +522,7 @@ async function stockStep(page, pass, problems) {
   const choice = page.getByLabel(/^Stock item/);
   const value = await choice.locator('option', { hasText: STOCK.name }).getAttribute('value');
   await choice.selectOption(value);
-  check((await page.getByLabel(/^Description/).inputValue()) === STOCK.name, 'stock line fills the description');
+  check((await page.getByLabel(/^Item/).inputValue()) === STOCK.name, 'stock line fills the description');
   await page.getByLabel(/^Qty/).fill(STOCK.soldQty);
   await page.getByLabel(/^Sale price each/).fill(STOCK.price);
   await saveSaleButton(page).click();

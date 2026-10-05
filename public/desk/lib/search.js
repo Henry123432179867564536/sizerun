@@ -359,3 +359,68 @@ export function search(query, { clients = [], deals = [] } = {}) {
 
   return { query: phrase, number, clients: clientResults, items, itemGroups: groupItems(items), orders };
 }
+
+// ---- item history (suggestions while typing an item) ---------------------------------------
+
+/**
+ * Every distinct item the owner has sold or stocked, newest first:
+ * [{ description, brand, sku, count, lastPrice, lastCost, lastDate }]. Items with the same
+ * normalised name are merged; brand and SKU come from the most recent entry that has them.
+ */
+export function itemHistory({ deals = [], stock = [] } = {}) {
+  const byKey = new Map();
+  const add = (entry) => {
+    const name = String(entry.description ?? '').trim();
+    if (!name) return;
+    const key = normalize(name);
+    const seen = byKey.get(key);
+    if (!seen) {
+      byKey.set(key, { description: name, brand: entry.brand || null, sku: entry.sku || null, count: entry.count ?? 1,
+        lastPrice: entry.lastPrice ?? null, lastCost: entry.lastCost ?? null, lastDate: entry.date ?? '' });
+      return;
+    }
+    seen.count += entry.count ?? 1;
+    const newer = (entry.date ?? '') > seen.lastDate;
+    if (newer) {
+      // Keep the nicer spelling: a later all-lowercase entry doesn't replace "Travis Scott…".
+      if (/[A-Z]/.test(name) || !/[A-Z]/.test(seen.description)) seen.description = name;
+      seen.lastDate = entry.date ?? '';
+      if (entry.lastPrice !== null && entry.lastPrice !== undefined) seen.lastPrice = entry.lastPrice;
+      if (entry.lastCost !== null && entry.lastCost !== undefined) seen.lastCost = entry.lastCost;
+    }
+    if (entry.brand && (newer || !seen.brand)) seen.brand = entry.brand;
+    if (entry.sku && (newer || !seen.sku)) seen.sku = entry.sku;
+  };
+  for (const deal of deals) {
+    if (deal?.status === 'cancelled') continue;
+    for (const item of deal?.items ?? []) {
+      const cost = item.cost_status === 'actual' ? item.unit_cost : item.expected_unit_cost;
+      add({ description: item.description, brand: item.brand, sku: item.sku, date: deal.sale_date ?? '',
+        lastPrice: item.unit_price ?? null, lastCost: cost ?? null });
+    }
+  }
+  for (const s of stock) add({ description: s.name, brand: s.brand, sku: s.sku, date: s.bought_at ?? '', lastCost: s.unit_cost ?? null, count: 0 });
+  return [...byKey.values()].sort((a, b) => (b.lastDate || '').localeCompare(a.lastDate || '') || b.count - a.count);
+}
+
+/**
+ * The best history entries for what has been typed so far: every typed word must start a word
+ * in the item name, brand or SKU (so "jordan 1 trav" finds "Travis Scott Jordan 1 Low").
+ * Exact-prefix matches first, then most-sold, then newest. Nothing for fewer than 2 characters
+ * or when the text already equals an entry.
+ */
+export function suggestItems(history, typed, limit = 6) {
+  const query = normalize(typed);
+  if (query.length < 2) return [];
+  const words = query.split(' ').filter(Boolean);
+  const scored = [];
+  for (const entry of history) {
+    const name = normalize(entry.description);
+    if (name === query) return [];
+    const hay = `${name} ${normalize(entry.brand ?? '')} ${normalize(entry.sku ?? '')}`.trim().split(' ');
+    if (!words.every((w) => hay.some((h) => h.startsWith(w)))) continue;
+    scored.push({ entry, score: (name.startsWith(query) ? 2 : 0) + (hay[0]?.startsWith(words[0]) ? 1 : 0) });
+  }
+  scored.sort((a, b) => b.score - a.score || b.entry.count - a.entry.count || (b.entry.lastDate || '').localeCompare(a.entry.lastDate || ''));
+  return scored.slice(0, limit).map((s) => s.entry);
+}

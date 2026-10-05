@@ -57,6 +57,7 @@ import {
   costProblems,
   costRowFromDraft,
   draftFromCost,
+  conditionLabel,
   draftFromItem,
   homeLocation,
   itemProblems,
@@ -71,6 +72,7 @@ import {
   useFormBarHeight,
   useMedia,
 } from './deals.js';
+import { itemHistory } from '../lib/search.js';
 
 const DONE_STATUSES = new Set(['delivered', 'completed']);
 const PAYMENTS_ID = 'sale-payments';
@@ -381,8 +383,6 @@ function SummaryCard({ deal, totals, settings, status, statusBusy, onStatus, ste
   const cancelled = totals.bucket === 'cancelled';
   const bucket = bucketMeta[totals.bucket] ?? bucketMeta.pending;
   const payment = paymentMeta[totals.paymentStatus] ?? paymentMeta.none;
-  const target = num(settings?.target_margin);
-  const underTarget = target > 0 && totals.margin !== null && totals.netProfit < target * totals.revenue - EPS;
 
   let owed = { label: 'Owed', value: '—', sub: null, tone: undefined };
   if (!cancelled) {
@@ -419,8 +419,7 @@ function SummaryCard({ deal, totals, settings, status, statusBusy, onStatus, ste
         <${Figure}
           label="Margin"
           value=${pct(totals.margin)}
-          tone=${underTarget && !cancelled ? 'warn' : undefined}
-          sub=${target > 0 ? `Target ${pct(target)}` : null}
+          sub="Of the sale price"
         />
         <${Figure} ...${owed} />
       </div>
@@ -433,7 +432,7 @@ function SummaryCard({ deal, totals, settings, status, statusBusy, onStatus, ste
         <${Button} kind="primary" onClick=${onStep}>${step.label}<//>
       </div>`}
       <${Disclosure} title="How it adds up" hint=${wide ? null : `${money(totals.revenue)} sale`} open=${wide}>
-        <${ProfitBreakdown} totals=${totals} targetMargin=${target} />
+        <${ProfitBreakdown} totals=${totals} />
       <//>
     </div>
   <//>`;
@@ -462,6 +461,7 @@ function ItemLine({ item, onEdit, onMarkBought }) {
   const qty = num(item.qty);
   const sub = [
     item.size,
+    conditionLabel(item.condition),
     `${qty} × ${money(item.unit_price)}`,
     `cost ${money(itemCost(item))}${qty > 1 ? ' each' : ''}${line.isExpected ? ' (est.)' : ''}`,
   ].filter(Boolean).join(' · ');
@@ -534,6 +534,7 @@ function ItemSheet({ store, deal, item, onClose }) {
     return { stock, deals };
   });
 
+  const history = useMemo(() => itemHistory({ deals: stockData?.deals ?? [], stock: stockData?.stock ?? [] }), [stockData]);
   const choices = useMemo(() => {
     if (!stockData) return [];
     // This line's own share of its stock is free again while it is being edited.
@@ -607,6 +608,7 @@ function ItemSheet({ store, deal, item, onClose }) {
         stockChoices=${choices}
         maxQty=${maxQty}
         onChange=${(patch) => setDraft((current) => ({ ...current, ...patch }))}
+        history=${history}
       />
       ${draft.source === 'stock' && stockError && html`<p class="sd-reason tone-warn">Couldn't load your stock: ${stockError.message}</p>`}
       ${draft.source === 'stock' && !stockData && !stockError && html`<p class="sd-reason">Loading your stock…</p>`}

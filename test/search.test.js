@@ -327,3 +327,23 @@ describe('itemsSummary', () => {
     assert.equal(itemsSummary(null), '');
   });
 });
+
+test('item history and suggestions while typing an item', async () => {
+  const { itemHistory, suggestItems } = await import('../public/desk/lib/search.js');
+  const deals = [
+    { sale_date: '2026-09-01', status: 'completed', items: [{ description: 'Travis Scott Jordan 1 Low', brand: 'Nike', sku: 'DM7866-162', unit_price: 450, cost_status: 'actual', unit_cost: 300 }] },
+    { sale_date: '2026-09-20', status: 'agreed', items: [{ description: 'travis scott jordan 1 low', unit_price: 480, cost_status: 'expected', expected_unit_cost: 320 }, { description: 'Nike Dunk Low Panda', unit_price: 120 }] },
+    { sale_date: '2026-09-25', status: 'cancelled', items: [{ description: 'Cancelled Thing' }] },
+  ];
+  const history = itemHistory({ deals, stock: [{ name: 'Yeezy Slide Onyx', brand: 'adidas', unit_cost: 60, bought_at: '2026-08-01' }] });
+  const travis = history.find((e) => e.sku === 'DM7866-162');
+  assert.equal(travis.description, 'Travis Scott Jordan 1 Low'); // nicer spelling kept
+  assert.equal(travis.count, 2);
+  assert.equal(travis.lastPrice, 480);
+  assert.ok(!history.some((e) => e.description === 'Cancelled Thing'));
+  assert.deepEqual(suggestItems(history, 'jordan 1 trav').map((e) => e.description), ['Travis Scott Jordan 1 Low']);
+  assert.deepEqual(suggestItems(history, 'dm78').map((e) => e.description), ['Travis Scott Jordan 1 Low']);
+  assert.deepEqual(suggestItems(history, 'yeezy').map((e) => e.description), ['Yeezy Slide Onyx']);
+  assert.deepEqual(suggestItems(history, 'Travis Scott Jordan 1 Low'), []);
+  assert.deepEqual(suggestItems(history, 't'), []);
+});

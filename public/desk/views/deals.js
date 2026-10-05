@@ -37,7 +37,8 @@ import {
   useId,
   useStoreData,
 } from '../lib/ui.js';
-import { EPS, dealNumber, dealTotals, itemTotals, num, stockLevels, tripTotals } from '../lib/calc.js';
+import { EPS, averagePayToDeliver, dealNumber, dealTotals, itemTotals, num, payToDeliverDays, stockLevels, tripTotals } from '../lib/calc.js';
+import { itemHistory, suggestItems } from '../lib/search.js';
 import {
   date as formatDate,
   dateShort,
@@ -45,8 +46,8 @@ import {
   miles as formatMiles,
   money,
   pct,
+  payToDeliverText,
   plural,
-  relDays,
   todayISO,
 } from '../lib/format.js';
 
@@ -67,6 +68,12 @@ const PICKER_LIMIT = 6;
 // views/calculator.js does. Field pairs are explicit (never auto-fit, so nothing is stranded or
 // squeezed); dates take the full width on phones, where iOS date controls ignore narrow widths.
 const CSS = `
+.item-name { position: relative; }
+.item-suggest { list-style: none; margin: 6px 0 0; padding: 4px; border: 1px solid var(--line-2); border-radius: var(--r-ctl, 6px); background: var(--surface); box-shadow: 0 8px 24px rgb(0 0 0 / 0.10); max-height: 300px; overflow-y: auto; }
+.item-suggest li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; min-height: 44px; border-radius: 6px; cursor: pointer; }
+.item-suggest li:hover, .item-suggest li.is-active { background: var(--surface-2); }
+.item-suggest-name { font-weight: 500; overflow-wrap: anywhere; }
+.item-suggest-sub { color: var(--ink-3); font-size: 13px; overflow-wrap: anywhere; }
 .field-pair.sf-qty { grid-template-columns: minmax(0, 1fr) 96px; }
 .sf-box { overflow: hidden; border: 1px solid var(--line); border-radius: var(--r-ctl); }
 .sf-box-pad { padding: 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); }
@@ -205,6 +212,9 @@ export const PAYMENT_METHOD_OPTIONS = Object.freeze(
   Object.entries(PAYMENT_METHODS).map(([value, label]) => ({ value, label })),
 );
 
+export { CONDITIONS, conditionLabel } from '../lib/format.js';
+import { CONDITIONS } from '../lib/format.js';
+
 const ITEM_SOURCES = [
   { value: 'buy', label: 'Need to buy' },
   { value: 'bought', label: 'Bought' },
@@ -328,6 +338,7 @@ export function blankItem(overrides = {}) {
     brand: '',
     sku: '',
     size: '',
+    condition: 'new',
     qty: '1',
     unit_price: '',
     expected_unit_cost: '',
@@ -353,6 +364,7 @@ export function draftFromItem(item = {}) {
     brand: item.brand ?? '',
     sku: item.sku ?? '',
     size: item.size ?? '',
+    condition: item.condition ?? '',
     qty: item.qty === null || item.qty === undefined ? '1' : String(item.qty),
     unit_price: amountText(item.unit_price),
     expected_unit_cost: amountText(item.expected_unit_cost),
@@ -375,6 +387,7 @@ export function itemRowFromDraft(draft, stockById = new Map()) {
     brand: trimmed(draft.brand) || null,
     sku: trimmed(draft.sku) || null,
     size: trimmed(draft.size) || null,
+    condition: draft.condition || null,
     qty: parseAmount(draft.qty),
     unit_price: parseAmount(draft.unit_price),
   };
@@ -417,7 +430,7 @@ export function itemRowFromDraft(draft, stockById = new Map()) {
 /** Field → message for an item draft (empty object when valid). maxQty caps stock lines. */
 export function itemProblems(draft, { maxQty } = {}) {
   const problems = {
-    description: trimmed(draft.description) ? null : 'Describe the item, e.g. "Nike Dunk Low Panda".',
+    description: trimmed(draft.description) ? null : 'Enter the item, e.g. "Nike Dunk Low Panda".',
     qty: qtyProblem(draft.qty, draft.source === 'stock' && draft.stock_item_id ? maxQty : undefined),
     unit_price: amountProblem(draft.unit_price, { what: 'the sale price' }),
   };
@@ -872,7 +885,85 @@ function varianceHint(row, qty) {
  * (expected cost), "Bought" (what was paid) or "From stock" (a stock line's cost). Shows the
  * line's own sale, cost and profit as it is typed.
  */
-export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], maxQty, title, onRemove }) {
+/**
+ * The item name with suggestions from what you've sold or stocked before. Picking one fills the
+ * name (and brand/SKU when empty) so a repeat item takes two or three letters.
+ */
+function ItemNameField({ value, error, history, onInput, onPick }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const listId = useMemo(() => `item-suggest-${Math.random().toString(36).slice(2, 8)}`, []);
+  const matches = useMemo(() => (open ? suggestItems(history, value) : []), [open, history, value]);
+  const shown = open && matches.length > 0;
+
+  const pick = (entry) => {
+    onPick(entry);
+    setOpen(false);
+    setActive(-1);
+  };
+  const onKeyDown = (event) => {
+    if (!shown) return;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      setActive((i) => (i + step + matches.length) % matches.length);
+    } else if (event.key === 'Enter' && active >= 0) {
+      event.preventDefault();
+      pick(matches[active]);
+    } else if (event.key === 'Escape') {
+      setOpen(false);
+    }
+  };
+
+  return html`<div class="item-name">
+    <${Field} label="Item" required error=${error} hint=${history.length ? 'Start typing — items you have sold before come up.' : undefined}>
+      <${Input}
+        autocomplete="off"
+        autocapitalize="words"
+        placeholder="e.g. Travis Scott Jordan 1 Low"
+        role="combobox"
+        aria-expanded=${shown ? 'true' : 'false'}
+        aria-controls=${listId}
+        aria-autocomplete="list"
+        aria-activedescendant=${shown && active >= 0 ? `${listId}-${active}` : undefined}
+        value=${value}
+        onInput=${(event) => {
+          onInput(event.currentTarget.value);
+          setOpen(true);
+          setActive(-1);
+        }}
+        onFocus=${() => setOpen(true)}
+        onBlur=${() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown=${onKeyDown}
+      />
+    <//>
+    ${shown && html`<ul class="item-suggest" id=${listId} role="listbox" aria-label="Items you've sold before">
+      ${matches.map((entry, index) => {
+        const sub = [
+          entry.brand,
+          entry.sku,
+          entry.lastPrice !== null && entry.lastPrice !== undefined ? `last sold ${money(entry.lastPrice, { pence: false })}` : null,
+          entry.lastCost !== null && entry.lastCost !== undefined ? `cost ${money(entry.lastCost, { pence: false })}` : null,
+          entry.count > 1 ? `${entry.count}×` : null,
+        ].filter(Boolean).join(' · ');
+        return html`<li
+          key=${entry.description}
+          id=${`${listId}-${index}`}
+          role="option"
+          aria-selected=${index === active ? 'true' : 'false'}
+          class=${index === active ? 'is-active' : undefined}
+          onMouseDown=${(event) => event.preventDefault()}
+          onClick=${() => pick(entry)}
+        >
+          <span class="item-suggest-name">${entry.description}</span>
+          ${sub && html`<span class="item-suggest-sub">${sub}</span>`}
+        </li>`;
+      })}
+    </ul>`}
+  </div>`;
+}
+
+export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], maxQty, title, onRemove, history = [] }) {
   const stockById = useMemo(() => new Map(stockChoices.map((choice) => [choice.stock.id, choice.stock])), [stockChoices]);
   const row = itemRowFromDraft(draft, stockById);
   const line = itemTotals(row);
@@ -894,6 +985,7 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
       brand: draft.brand || stock.brand || '',
       size: draft.size || stock.size || '',
       sku: draft.sku || stock.sku || '',
+      condition: stock.condition || draft.condition,
     });
   };
 
@@ -968,9 +1060,17 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
       <span class="sf-head-title">${title}</span>
       ${onRemove && html`<${Button} kind="ghost" size="sm" icon="trash" onClick=${onRemove} aria-label=${`Remove ${title}`}>Remove<//>`}
     </div>`}
-    <${Field} label="Description" required error=${errors.description}>
-      <${Input} autocomplete="off" autocapitalize="words" placeholder="e.g. Nike Air Jordan 1 Chicago" value=${draft.description} onInput=${text('description')} />
-    <//>
+    <${ItemNameField}
+      value=${draft.description}
+      error=${errors.description}
+      history=${history}
+      onInput=${(value) => onChange({ description: value })}
+      onPick=${(entry) => onChange({
+        description: entry.description,
+        brand: draft.brand || entry.brand || '',
+        sku: draft.sku || entry.sku || '',
+      })}
+    />
     <div class="field-pair sf-qty">
       <${Field} label="Size">
         <${Input} autocomplete="off" placeholder="e.g. UK 9" value=${draft.size} onInput=${text('size')} />
@@ -978,6 +1078,16 @@ export function ItemFields({ draft, onChange, errors = {}, stockChoices = [], ma
       <${Field} label="Qty" required error=${errors.qty} hint=${stockQtyHint}>
         <${Input} inputmode="numeric" autocomplete="off" value=${draft.qty} onInput=${text('qty')} />
       <//>
+    </div>
+    <div class="field">
+      <span class="field-label" aria-hidden="true">Condition</span>
+      <${Segmented}
+        full
+        label="Condition"
+        options=${CONDITIONS}
+        value=${draft.condition}
+        onChange=${(condition) => onChange({ condition })}
+      />
     </div>
     <div class="field">
       <span class="field-label" aria-hidden="true">Where's it coming from?</span>
@@ -1059,11 +1169,11 @@ function KvRow({ label, note, value, kind, big }) {
 }
 
 /**
- * ProfitBreakdown({ totals, targetMargin, perHour = true }) — calc.dealTotals() as a waterfall:
+ * ProfitBreakdown({ totals, perHour = true }) — calc.dealTotals() as a waterfall:
  * sale price → goods → extras → gross → travel → profit → your time → after your time, then
  * profit per driving hour (perHour=false leaves that out where it is shown elsewhere).
  */
-export function ProfitBreakdown({ totals: t, targetMargin, perHour = true }) {
+export function ProfitBreakdown({ totals: t, perHour = true }) {
   const drove = t.totalMinutes > 0 || t.travelCost > EPS;
   const hourlyRate = t.totalMinutes > 0 ? t.timeCost / (t.totalMinutes / 60) : 0;
   let varianceNote = null;
@@ -1071,10 +1181,6 @@ export function ProfitBreakdown({ totals: t, targetMargin, perHour = true }) {
     if (Math.abs(t.variance) < EPS) varianceNote = 'Exactly what you expected';
     else varianceNote = t.variance > 0 ? 'Bought cheaper than expected' : 'Cost more than expected';
   }
-  // Compared in money with calc's half-penny tolerance, as calc.assessDeal does.
-  const marginNote = targetMargin > 0 && t.margin !== null
-    ? `${t.netProfit >= targetMargin * t.revenue - EPS ? 'on' : 'under'} your ${pct(targetMargin)} target`
-    : null;
 
   return html`<dl class="kv">
     <${KvRow} label="Sale price" value=${html`<${Money} value=${t.revenue} />`} />
@@ -1104,7 +1210,7 @@ export function ProfitBreakdown({ totals: t, targetMargin, perHour = true }) {
       kind="total"
       big
       label="Profit"
-      note=${t.margin !== null ? `${pct(t.margin)} margin${marginNote ? ` · ${marginNote}` : ''}` : null}
+      note=${t.margin !== null ? `${pct(t.margin)} margin` : null}
       value=${html`<${Money} value=${t.netProfit} tone="auto" />`}
     />
     ${t.totalMinutes > 0 && html`
@@ -1191,6 +1297,7 @@ function SaleRow({ row, navigate }) {
   const cancelled = deal.status === 'cancelled';
   const dueSoon = deal.due_date && OPEN_STATUSES.has(deal.status);
   const overdue = dueSoon && deal.due_date < todayISO();
+  const payText = payToDeliverText(payToDeliverDays(deal));
   return html`<tr class="is-clickable" onClick=${() => navigate(href)}>
     <td class="cell-primary">
       <div class="row row-nowrap" style="gap:6px">
@@ -1204,9 +1311,10 @@ function SaleRow({ row, navigate }) {
       </div>
       ${toBuy > 0 && !cancelled && html`<span class="pill pill-warn">${toBuy} to buy</span>`}
     </td>
-    <td data-label="Sold">
-      <span class="nowrap">${saleDate(deal.sale_date)}</span>
-      ${dueSoon && html`<div class=${cx('tiny', overdue ? 'tone-loss' : 'faint')}>due ${relDays(deal.due_date)}</div>`}
+    <td data-label="Deliver by">
+      <span class=${cx('nowrap', overdue && 'tone-loss')}>${deal.due_date ? saleDate(deal.due_date) : '—'}</span>
+      <div class="tiny faint nowrap">sold ${saleDate(deal.sale_date)}</div>
+      ${payText && html`<div class="tiny faint">${payText}</div>`}
     </td>
     <td data-label="Status"><${Badge} tone=${status.tone}>${status.label}<//></td>
     <td data-label="Revenue" class="num"><${Money} value=${totals.revenue} tone=${cancelled ? 'muted' : undefined} /></td>
@@ -1214,6 +1322,7 @@ function SaleRow({ row, navigate }) {
       <${Money} value=${totals.netProfit} tone=${cancelled ? 'muted' : 'auto'} />
       ${totals.certainty === 'estimated' && !cancelled && html` <span class="pill pill-warn" title="Estimated: some costs are still expected">est.</span>`}
     </td>
+    <td data-label="Margin" class="num">${cancelled ? '—' : pct(totals.margin)}</td>
     <td data-label="Payment">
       <${Badge} tone=${payment.tone}>${payment.label}<//>
       ${!cancelled && totals.balance > EPS && totals.paymentStatus !== 'unpaid' && html`<div class="tiny faint">${money(totals.balance)} due</div>`}
@@ -1231,6 +1340,7 @@ function SaleListRow({ row }) {
   const overdue = dueSoon && deal.due_date < todayISO();
   const owed = !cancelled && totals.balance > EPS && deal.status !== 'enquiry';
   const units = unitCount(deal.items);
+  const payText = payToDeliverText(payToDeliverDays(deal));
   return html`<a class="list-item sale-row" href=${`#/sales/${deal.id}`}>
     <div class="list-main">
       <div class="list-title">${deal.client?.name ?? deal.title ?? 'No client'}</div>
@@ -1241,15 +1351,17 @@ function SaleListRow({ row }) {
         ${money(totals.netProfit)}
       </div>
       <div class="sale-amt-sub">
-        ${totals.certainty === 'estimated' && !cancelled ? 'est. · ' : ''}${owed ? `${money(totals.balance)} owed` : `${money(totals.revenue)} sale`}
+        ${totals.certainty === 'estimated' && !cancelled ? 'est. · ' : ''}${cancelled ? 'cancelled' : `${pct(totals.margin)} margin`}
       </div>
     </div>
     <div class="sale-row-meta">
+      <span class=${overdue ? 'tone-loss' : undefined}>${deal.due_date ? `Deliver ${saleDate(deal.due_date)}` : 'No deliver-by date'}</span>
       <span class="sale-dot" data-tone=${status.tone}>${status.label}</span>
+      ${owed && html`<span class="tone-warn">${money(totals.balance)} owed</span>`}
       ${units > 1 && html`<span>${units} items</span>`}
       ${!cancelled && totals.paymentStatus === 'paid' && html`<span class="sale-dot" data-tone="gain">Paid</span>`}
       ${toBuy > 0 && !cancelled && html`<span class="tone-warn">${toBuy} to buy</span>`}
-      ${dueSoon && html`<span class=${overdue ? 'tone-loss' : undefined}>due ${relDays(deal.due_date)}</span>`}
+      ${payText && html`<span>${payText}</span>`}
     </div>
   </a>`;
 }
@@ -1289,6 +1401,7 @@ function SalesList({ store, params, navigate }) {
   const profit = sum((row) => row.totals.netProfit);
   const owed = sum((row) => (isOwed(row) ? row.totals.balance : 0));
   const profitNote = live.length > 0 && live.every(isEstimated) ? ' est.' : '';
+  const payAverage = averagePayToDeliver(live.map((row) => row.deal));
   const wide = useMedia('(min-width: 900px)');
 
   const actions = html`<${Button} kind="primary" icon="plus" href="#/sales/new">New sale<//>`;
@@ -1314,8 +1427,13 @@ function SalesList({ store, params, navigate }) {
   const cardTitle = plural(shown.length, 'sale');
   const cardSub = tab === 'cancelled'
     ? 'Cancelled sales are left out of every total.'
-    : [`${money(profit, { pence: false })} profit${profitNote}`, owed > EPS && `${money(owed, { pence: false })} owed`, `${money(revenue, { pence: false })} in sales`]
-      .filter(Boolean).join(' · ');
+    : [
+      `${money(profit, { pence: false })} profit${profitNote}`,
+      revenue > EPS && `${pct(profit / revenue)} margin`,
+      owed > EPS && `${money(owed, { pence: false })} owed`,
+      `${money(revenue, { pence: false })} in sales`,
+      payAverage && `on average ${payToDeliverText(payAverage.days)}`,
+    ].filter(Boolean).join(' · ');
 
   return page(html`
     ${error && html`<${Banner} tone="warn" title="Couldn't refresh" actions=${html`<${Button} size="sm" onClick=${reload}>Try again<//>`}>${error.message}<//>`}
@@ -1353,10 +1471,11 @@ function SalesList({ store, params, navigate }) {
               <thead>
                 <tr>
                   <th scope="col">Sale</th>
-                  <th scope="col">Sold</th>
+                  <th scope="col">Deliver by</th>
                   <th scope="col">Status</th>
                   <th scope="col" class="num">Revenue</th>
                   <th scope="col" class="num">Profit</th>
+                  <th scope="col" class="num">Margin</th>
                   <th scope="col">Payment</th>
                 </tr>
               </thead>
@@ -1472,6 +1591,7 @@ async function loadNewSaleData(s) {
 
 function NewSale({ store, params, navigate }) {
   const { data, error, loading, reload } = useStoreData(store, loadNewSaleData);
+  const history = useMemo(() => itemHistory({ deals: data?.deals ?? [], stock: data?.stock ?? [] }), [data]);
   const [initial] = useState(() => initialSale(params));
   const [restored, setRestored] = useState(initial.restored);
   const [clientId, setClientId] = useState(initial.clientId);
@@ -1689,7 +1809,6 @@ function NewSale({ store, params, navigate }) {
 
   const certainty = certaintyMeta[totals.certainty];
   const drives = DRIVEN_DELIVERY.has(details.delivery_method);
-  const targetMargin = num(settings?.target_margin);
   const estimated = totals.certainty === 'estimated';
   const detailsHint = [
     statusMeta[details.status]?.label,
@@ -1741,6 +1860,7 @@ function NewSale({ store, params, navigate }) {
                 stockChoices=${choicesFor(item)}
                 maxQty=${maxQtyFor(item)}
                 onChange=${(patch) => updateItem(item.key, patch)}
+                history=${history}
                 onRemove=${items.length > 1 ? () => setItems((list) => list.filter((entry) => entry.key !== item.key)) : null}
               />
             </div>`)}
@@ -1840,7 +1960,7 @@ function NewSale({ store, params, navigate }) {
           actions=${html`<${Badge} tone=${certainty.tone}>${certainty.label}<//>`}
         >
           <div class="stack">
-            <${ProfitBreakdown} totals=${totals} targetMargin=${targetMargin} />
+            <${ProfitBreakdown} totals=${totals} />
             ${estimated && html`<p class="sf-note">
               Estimated until ${plural(totals.expectedCount, 'cost')} ${totals.expectedCount === 1 ? 'is' : 'are'} confirmed —
               mark items bought on the sale page.

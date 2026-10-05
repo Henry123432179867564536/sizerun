@@ -3,7 +3,7 @@
 // Sale price, buy price, extra costs and an optional drive (the trip planner) go through
 // calc.assessDeal for a live verdict — good, tight or losing money — with the reasons, the
 // profit before and after your time, £ per driving hour and the prices that work: break-even,
-// your hourly rate, your target margin, and the most you can pay. "Turn into a sale" hands the
+// your hourly rate, and the most you can pay. "Turn into a sale" hands the
 // numbers to the new-sale form through sessionStorage. The form survives leaving the page
 // (per tab) so a deal can be checked, compared and come back to.
 
@@ -68,7 +68,7 @@ if (typeof document !== 'undefined' && !document.getElementById(STYLE_ID)) {
 
 const PREFILL_KEY = 'sizemill.desk.prefill';
 const DRAFT_KEY = 'sizemill.desk.check';
-const FIELDS = ['item', 'sale', 'buy', 'extra', 'rate', 'margin'];
+const FIELDS = ['item', 'sale', 'buy', 'extra', 'rate'];
 
 const VERDICTS = {
   good: { title: 'Good deal', tone: 'gain', icon: 'check-circle', short: 'Good deal' },
@@ -111,7 +111,6 @@ function initialForm(settings) {
     buy: '',
     extra: '',
     rate: numberText(s.hourly_rate),
-    margin: numberText(Math.round(Number(s.target_margin) * 1000) / 10),
     drive: true,
     trip: null,
   };
@@ -187,8 +186,6 @@ function Checker({ store, settings, settingsError, onRetry, navigate }) {
   const buyPrice = valueOf(form.buy);
   const extraCosts = valueOf(form.extra) ?? 0;
   const rate = valueOf(form.rate) ?? 0;
-  const marginPercent = valueOf(form.margin) ?? 0;
-  const targetMargin = marginPercent < 100 ? marginPercent / 100 : 0;
 
   // One hourly rate: the field here and the planner's "Your time" edit the same number.
   const plannerValue = form.trip ? { ...form.trip, hourly_rate: rate } : null;
@@ -199,7 +196,7 @@ function Checker({ store, settings, settingsError, onRetry, navigate }) {
   });
 
   const trip = form.drive && form.trip ? { ...form.trip, hourly_rate: rate } : null;
-  const result = assessDeal({ salePrice, buyPrice, extraCosts, trip, hourlyRate: rate, targetMargin });
+  const result = assessDeal({ salePrice, buyPrice, extraCosts, trip, hourlyRate: rate });
   const ready = salePrice !== null && salePrice > 0;
   const verdict = VERDICTS[result.verdict];
   const tripIssues = trip ? tripProblems(trip) : {};
@@ -210,7 +207,6 @@ function Checker({ store, settings, settingsError, onRetry, navigate }) {
     buy: amountError(form.buy, { label: 'the buy price' }) ?? (showErrors && buyPrice === null ? "Enter what you'll pay for it (0 if nothing)." : null),
     extra: amountError(form.extra),
     rate: amountError(form.rate, { label: 'your hourly rate' }),
-    margin: amountError(form.margin, { label: 'a percentage', max: 100 }),
   };
 
   const notes = [];
@@ -273,9 +269,6 @@ function Checker({ store, settings, settingsError, onRetry, navigate }) {
       <${Field} label="Your hourly rate" hint="What an hour of driving is worth to you." error=${errors.rate}>
         <${Input} type="text" inputmode="decimal" autocomplete="off" prefix="£" suffix="/h" value=${form.rate} onInput=${set('rate')} />
       <//>
-      <${Field} label="Target margin" hint="Profit as a share of the sale price." error=${errors.margin}>
-        <${Input} type="text" inputmode="decimal" autocomplete="off" suffix="%" value=${form.margin} onInput=${set('margin')} />
-      <//>
     </div>
   <//>`;
 
@@ -325,8 +318,8 @@ function Checker({ store, settings, settingsError, onRetry, navigate }) {
               <${Stat}
                 label="Margin"
                 value=${pct(result.margin)}
-                tone=${result.margin === null ? undefined : targetMargin > 0 && result.margin < targetMargin ? 'warn' : result.margin < 0 ? 'loss' : 'gain'}
-                sub=${targetMargin > 0 ? `Target ${pct(targetMargin)}` : 'No target set'}
+                tone=${result.margin === null ? undefined : result.margin < 0 ? 'loss' : 'gain'}
+                sub="Profit as a share of the price"
               />
             </div>
             <div>
@@ -334,7 +327,6 @@ function Checker({ store, settings, settingsError, onRetry, navigate }) {
               <dl class="kv">
                 <div><dt>Break-even<small>Covers the item, extras and the drive</small></dt><dd>${money(result.breakEvenPrice)}</dd></div>
                 <div><dt>To earn ${rateLabel(rate)}<small>Also pays you for your time</small></dt><dd>${money(result.priceForRate)}</dd></div>
-                <div><dt>For a ${pct(targetMargin)} margin<small>Your target margin</small></dt><dd>${result.priceForMargin === null ? '—' : money(result.priceForMargin)}</dd></div>
                 <div><dt>Most you can pay<small>And still earn ${rateLabel(rate)}</small></dt><dd class=${cx(result.maxBuyPrice < 0 && 'tone-loss')}>${money(result.maxBuyPrice)}</dd></div>
               </dl>
             </div>
