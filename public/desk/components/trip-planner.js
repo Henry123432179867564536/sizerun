@@ -15,7 +15,7 @@
 // To load a different trip into a mounted planner, remount it (change its `key`).
 
 import { html, useCallback, useEffect, useMemo, useRef, useState } from '../lib/preact.js';
-import { Badge, Banner, Button, Field, Icon, Input, Select, Spinner, Switch, cx } from '../lib/ui.js';
+import { Badge, Banner, Button, Field, Icon, Input, Segmented, Select, Spinner, Switch, cx } from '../lib/ui.js';
 import { num, round2, tripTotals } from '../lib/calc.js';
 import { dateShort, duration, miles as formatMiles, money, plural, ppl as formatPpl, todayISO } from '../lib/format.js';
 import { DEFAULT_SETTINGS } from '../lib/store.js';
@@ -80,6 +80,31 @@ export const FUEL_TYPE_OPTIONS = Object.freeze([
   { value: 'B7', label: 'Diesel (B7)' },
   { value: 'SDV', label: 'Super diesel (SDV)' },
 ]);
+
+// How miles and time are filled in: looked up from the two addresses, or typed by the owner.
+// The last choice is remembered on this device; a trip saved with typed numbers reopens typed.
+const ROUTE_MODE_KEY = 'sizemill.desk.routeMode';
+const ROUTE_MODE_OPTIONS = [
+  { value: 'auto', label: 'Work it out' },
+  { value: 'manual', label: "I'll enter it" },
+];
+
+function initialRouteMode(trip) {
+  if (trip?.route_provider === 'manual' && Number(trip?.one_way_miles) > 0) return 'manual';
+  try {
+    return globalThis.localStorage?.getItem(ROUTE_MODE_KEY) === 'manual' ? 'manual' : 'auto';
+  } catch {
+    return 'auto';
+  }
+}
+
+function rememberRouteMode(mode) {
+  try {
+    globalThis.localStorage?.setItem(ROUTE_MODE_KEY, mode);
+  } catch {
+    // Private mode or blocked storage: the choice just isn't remembered.
+  }
+}
 
 const PROVIDER_LABELS = {
   google: 'Google · traffic-aware',
@@ -403,6 +428,8 @@ export default function TripPlanner({
   const fuelRequestRef = useRef(0);
   const [touched, setTouched] = useState(() => new Set());
   const [moreOpen, setMoreOpen] = useState(false);
+  const [routeMode, setRouteMode] = useState(() => initialRouteMode(trip));
+  const manual = routeMode === 'manual';
 
   const update = useCallback((patch, { byUser = true } = {}) => {
     const next = { ...tripRef.current, ...patch };
@@ -491,9 +518,24 @@ export default function TripPlanner({
 
   // Route automatically whenever both ends are set and the pair has not been tried yet.
   useEffect(() => {
-    if (!routable || route.busy || key === route.doneKey || key === route.triedKey) return;
+    if (manual || !routable || route.busy || key === route.doneKey || key === route.triedKey) return;
     calculate();
-  }, [key, routable, route.busy]);
+  }, [key, routable, route.busy, manual]);
+
+  const chooseRouteMode = (mode) => {
+    if (mode === routeMode) return;
+    setRouteMode(mode);
+    rememberRouteMode(mode);
+    if (mode === 'manual') {
+      // Stop any lookup on its way; numbers already shown stay as a starting point to edit.
+      routeRequestRef.current += 1;
+      setRoute((r) => ({ ...r, busy: false, error: null, doneKey: key, triedKey: key }));
+      if (num(tripRef.current.one_way_miles) > 0) update({ route_provider: 'manual' });
+    } else {
+      // Back to looking it up: forget that these places were already tried so it routes again.
+      setRoute((r) => ({ ...r, error: null, doneKey: null, triedKey: null }));
+    }
+  };
 
   const setPlace = (prefix) => (place) => {
     const patch = placeFields(prefix, place);
@@ -568,7 +610,7 @@ export default function TripPlanner({
   // ---- rendering ----
 
   const routeKnown = isNumber(trip.one_way_miles) && num(trip.one_way_miles) > 0;
-  const stale = routeKnown && routable && !route.busy && key !== route.doneKey;
+  const stale = !manual && routeKnown && routable && !route.busy && key !== route.doneKey;
   const startsAtHome = home && origin && placeKey(home) === placeKey(origin);
   const providerLabel = PROVIDER_LABELS[trip.route_provider] ?? null;
 
@@ -598,6 +640,7 @@ export default function TripPlanner({
 
   const distanceGroup = html`<fieldset class="tp-group">
     <legend>Distance and time</legend>
+    ${manual && html`<p class="tp-tip">Type the miles and driving time each way — nothing is looked up.${trip.round_trip !== false ? ' The drive back is added for you.' : ''}</p>`}
     <div class="tp-grid tp-grid-3">
       <${NumField}
         label="Miles, one way"
@@ -708,11 +751,19 @@ export default function TripPlanner({
 
   const showMap = !compact || (Array.isArray(trip.route_geometry) && trip.route_geometry.length > 1);
 
-  return html`<div class=${cx('tp', compact && 'is-compact')}>
+  return html`<div class=${cx('tp', compact && 'is-compact', manual && 'is-manual')}>
+    <${Segmented}
+      label="How to get the miles and time"
+      options=${ROUTE_MODE_OPTIONS}
+      value=${routeMode}
+      onChange=${chooseRouteMode}
+      full
+    />
     <div class="tp-places">
       <${AddressInput}
         store=${store}
-        label="From"
+        label=${manual ? 'From (optional)' : 'From'}
+        needsPin=${!manual}
         value=${origin}
         onChange=${setPlace('origin')}
         placeholder="Where you set off"
@@ -720,7 +771,8 @@ export default function TripPlanner({
       />
       <${AddressInput}
         store=${store}
-        label="To"
+        label=${manual ? 'To (optional)' : 'To'}
+        needsPin=${!manual}
         value=${destination}
         onChange=${setPlace('dest')}
         placeholder="Drop-off address or postcode"
@@ -744,16 +796,16 @@ export default function TripPlanner({
         label="Round trip"
         hint="Count the drive back too"
       />
-      <${Button}
+      ${!manual && html`<${Button}
         kind=${routeKnown && !stale ? 'secondary' : 'primary'}
         icon="car"
         onClick=${calculate}
         loading=${route.busy}
         disabled=${!routable}
-      >${route.busy ? 'Calculating…' : routeKnown && !stale && trip.route_provider !== 'manual' ? 'Recalculate' : 'Calculate route'}<//>
+      >${route.busy ? 'Calculating…' : routeKnown && !stale && trip.route_provider !== 'manual' ? 'Recalculate' : 'Calculate route'}<//>`}
     </div>
 
-    ${route.error && html`<${Banner} tone="warn" title="Couldn't calculate the route">
+    ${!manual && route.error && html`<${Banner} tone="warn" title="Couldn't calculate the route">
       ${route.error} You can type the one-way miles and driving time below.
     <//>`}
     ${stale && !route.error && html`<${Banner} tone="warn" title="The route is out of date">
