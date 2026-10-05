@@ -197,6 +197,7 @@ describe('memory store: settings', () => {
       target_margin: 0.25,
       logo_url: null,
       brand_color: null,
+      background_color: null,
     });
     assert.ok(Object.isFrozen(DEFAULT_SETTINGS));
   });

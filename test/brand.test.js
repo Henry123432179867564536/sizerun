@@ -129,7 +129,7 @@ describe('brand data', () => {
 
   test('brandFromSettings treats the default business name as not set', () => {
     assert.deepEqual(brandFromSettings({ business_name: 'Sizemill', logo_url: null, brand_color: null }), {
-      name: null, logo: null, color: null, monogram: null, title: APP_NAME,
+      name: null, logo: null, color: null, background: null, monogram: null, title: APP_NAME,
     });
     const umi = brandFromSettings({ business_name: ' Umi Sneakers ', brand_color: '#0f6e74' });
     assert.equal(umi.name, 'Umi Sneakers');
@@ -153,8 +153,8 @@ describe('cached brand', () => {
     const storage = fakeStorage();
     const logo = 'https://x/brand/u/logo-1.png#w=10&h=10';
     cacheBrand({ business_name: 'Umi Sneakers', logo_url: logo, brand_color: '#1f4b85', mpg: 45 }, storage);
-    assert.deepEqual(JSON.parse(storage.data.get(BRAND_CACHE_KEY)), { v: 1, name: 'Umi Sneakers', logo_url: logo, brand_color: '#1F4B85' });
-    assert.deepEqual(readCachedBrand(storage), { name: 'Umi Sneakers', logo_url: logo, brand_color: '#1F4B85' });
+    assert.deepEqual(JSON.parse(storage.data.get(BRAND_CACHE_KEY)), { v: 1, name: 'Umi Sneakers', logo_url: logo, brand_color: '#1F4B85', background_color: null });
+    assert.deepEqual(readCachedBrand(storage), { name: 'Umi Sneakers', logo_url: logo, brand_color: '#1F4B85', background_color: null });
   });
 
   test('local mode caches under its own key and never touches the account cache', () => {
@@ -190,7 +190,7 @@ describe('cached brand', () => {
     assert.equal(readCachedBrand(fakeStorage({ [BRAND_CACHE_KEY]: '42' })), null);
     assert.deepEqual(
       readCachedBrand(fakeStorage({ [BRAND_CACHE_KEY]: JSON.stringify({ name: 'Umi', logo_url: 'javascript:x', brand_color: 'red' }) })),
-      { name: 'Umi', logo_url: null, brand_color: null },
+      { name: 'Umi', logo_url: null, brand_color: null, background_color: null },
     );
   });
 
@@ -202,7 +202,7 @@ describe('cached brand', () => {
       setItem(key, value);
     };
     cacheBrand({ business_name: 'Umi', logo_url: `data:image/png;base64,${'A'.repeat(500)}`, brand_color: '#0F6E74' }, storage);
-    assert.deepEqual(readCachedBrand(storage), { name: 'Umi', logo_url: null, brand_color: '#0F6E74' });
+    assert.deepEqual(readCachedBrand(storage), { name: 'Umi', logo_url: null, brand_color: '#0F6E74', background_color: null });
   });
 });
 
@@ -224,4 +224,21 @@ describe('<Logo>', () => {
     const none = Logo({ settings: {} });
     assert.ok(none.values.some((v) => String(v).includes('brand-mark')));
   });
+});
+
+test('background colour: readable light shade, dark tint, cached', async () => {
+  const { backgroundPalette, luminance } = brand;
+  assert.equal(backgroundPalette(null), null);
+  const sand = backgroundPalette('#F4EFE6');
+  assert.equal(sand.light, '#F4EFE6');
+  assert.equal(sand.adjusted, false);
+  const dark = backgroundPalette('#556070');
+  assert.equal(dark.adjusted, true);
+  assert.ok(contrast('#1B2028', dark.light) >= 7, `ink contrast on ${dark.light}`);
+  assert.ok(luminance(sand.dark) < 0.03, `dark mode paper ${sand.dark}`);
+  assert.match(brandCss(null, '#F4EFE6'), /--paper: #F4EFE6/);
+  assert.doesNotMatch(brandCss(null, null), /--paper/);
+  const storage = fakeStorage({});
+  cacheBrand({ business_name: 'Umi', background_color: '#e8f3ee' }, storage);
+  assert.equal(readCachedBrand(storage).background_color, '#E8F3EE');
 });
